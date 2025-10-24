@@ -102,6 +102,20 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #efefef;
+    padding: 1rem 1.5rem;
 }
 
+.menu-toggle label {
+    height: 60px;
+    width: 60px;
+    display: grid;
+    place-items: center;
+    font-size: 1.5rem;
+    border-radius: 50%;
+
+}
+
+.menu-toggle label:hover {
+    background: #efefef;
+    cursor: pointer;
+}

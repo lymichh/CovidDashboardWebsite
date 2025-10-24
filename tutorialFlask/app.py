@@ -10,6 +10,10 @@ app = Flask(__name__)
 # --- CONFIGURACIÓN DE LA CONEXIÓN ---
 # Es una mejor práctica usar variables de entorno para datos sensibles.
 # Si no se definen, se usarán los valores predeterminados que tenías.
+#server = getenv('DB_SERVER', 'localhost\\SQLEXPRESS')
+#database = getenv('DB_DATABASE', 'COVID-19')
+#username = getenv('DB_USERNAME', 'project')
+#password = getenv('DB_PASSWORD', 'project123')
 server = 'localhost,1433'
 database = 'COVID_19'
 username = 'project'

@@ -1,9 +1,8 @@
-"""
-Connects to a SQL database using pyodbc
-"""
-from os import getenv
-from flask import Flask, jsonify, render_template
+from flask import Flask, render_template, jsonify
 import pyodbc
+import pandas as pd
+import plotly.express as px
+import plotly.io as pio
 
 app = Flask(__name__)
 
@@ -19,7 +18,6 @@ database = 'COVID_19'
 username = 'project'
 password = 'project123'
 
-# Cadena de conexión
 connection_string = (
     f'DRIVER={{ODBC Driver 17 for SQL Server}};'
     f'SERVER={server};'
@@ -28,65 +26,125 @@ connection_string = (
     f'PWD={password}'
 )
 
-def get_db_data():
-    """
-    Se conecta a la base de datos, ejecuta una consulta y devuelve los datos.
-    Maneja la conexión y el cursor de forma segura.
-    """
-    db = None  # Inicializa la variable de conexión
+# Función para ejecutar consultas SQL
+def run_query(query, params=None):
     try:
-        # Usar 'with' asegura que la conexión se cierre incluso si hay errores
         db = pyodbc.connect(connection_string)
         cursor = db.cursor()
 
-        cursor.execute("SELECT * FROM covid_19_clean_complete")
+        # Si hay parámetros, se pasan al ejecutar
+        if params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+
+        rows = cursor.fetchall()
+        columns = [col[0] for col in cursor.description]
+        df = pd.DataFrame.from_records(rows, columns=columns)
+        db.close()
+        return df
+
+    except Exception as e:
+        print(f"Error al ejecutar consulta: {e}")
+        return pd.DataFrame()
+
+@app.route('/evolucion')
+def evolucion():
+
+    db = pyodbc.connect(connection_string)
+    cursor = db.cursor()
+
+    cursor.execute("SELECT DISTINCT Country_Region FROM dbo.covid_19_clean_complete ORDER BY Country_Region")
+    paises = [row[0] for row in cursor.fetchall()]
+
+    pais_default = 'Colombia'
+
+    """Genera la gráfica de evolución de casos confirmados en Colombia."""
+    query = """
+        SELECT Date, 
+               SUM(Confirmed) AS TotalConfirmed, 
+               SUM(Deaths) AS TotalMuertes, 
+               SUM(Recovered) AS TotalRecuperados
+        FROM dbo.covid_19_clean_complete
+        WHERE Country_Region = ?
+        GROUP BY Date
+        ORDER BY Date;
+    """
+    cursor.execute(query, pais_default)
+    rows = cursor.fetchall()
+
+    columns = [column[0] for column in cursor.description]
+    df = pd.DataFrame.from_records(rows, columns=columns)
+
+    fig = px.line(df, x='Date', y='TotalConfirmed',
+                  title=f'Evolución de Casos Confirmados en {pais_default}',
+                  markers=True,
+                  line_shape='spline')
+    fig.update_layout(
+        template='plotly_white',
+        title_x=0.5,
+        font=dict(family="Inter, sans-serif", size=14, color="#333"),
+        height=500,
+        margin=dict(l=40, r=40, t=60, b=40)
+    )
+
+    graph_html = pio.to_html(fig, full_html=False)
+    db.close()
+    return render_template('dashboard.html', paises=paises, pais_default = pais_default, graph_html=graph_html)
+
+@app.route('/evolucion_data/<pais>')
+def evolucion_data(pais):
+    print(f"🔍 Consultando datos para: {pais}")  # Para verificar en consola
+
+    query = """
+        SELECT Date, 
+               SUM(Confirmed) AS TotalConfirmed,
+               SUM(Deaths) AS TotalDeaths,
+               SUM(Recovered) AS TotalRecovered
+        FROM dbo.covid_19_clean_complete
+        WHERE Country_Region = ?
+        GROUP BY Date
+        ORDER BY Date;
+    """
+
+    try:
+        db = pyodbc.connect(connection_string)
+        cursor = db.cursor()
+        cursor.execute(query, pais)
         rows = cursor.fetchall()
 
-        # Convierte los resultados a una lista de diccionarios para que sea formato JSON
-        columns = [column[0] for column in cursor.description]
-        data = [dict(zip(columns, row)) for row in rows]
-        
-        return data
+        if not rows:
+            print("⚠️ No se encontraron registros.")
+            return jsonify({'html': '<p class="text-center text-red-500 font-semibold">No hay datos para este país.</p>'})
 
-    except pyodbc.Error as ex:
-        # Captura errores específicos de pyodbc para un mejor diagnóstico
-        sqlstate = ex.args[0]
-        print(f"Error de base de datos (SQLSTATE: {sqlstate}): {ex}")
-        return {"error": "No se pudo conectar o consultar la base de datos.", "details": str(ex)}
+        columns = [column[0] for column in cursor.description]
+        df = pd.DataFrame.from_records(rows, columns=columns)
+        print(df.head())  # Para ver si sí trajo datos
+
+        # Gráfico simple por ahora (solo TotalConfirmed)
+        fig = px.line(
+            df,
+            x='Date',
+            y='TotalConfirmed',
+            title=f'Evolución de casos confirmados en {pais}',
+            markers=True
+        )
+
+        graph_html = pio.to_html(fig, full_html=False)
+        return jsonify({'html': graph_html})
+
     except Exception as e:
-        print(f"Ocurrió un error inesperado: {e}")
-        return {"error": "Ocurrió un error inesperado en el servidor.", "details": str(e)}
+        print("❌ Error al ejecutar consulta:", e)
+        return jsonify({'html': f'<p style="color:red;">Error: {str(e)}</p>'})
+
     finally:
-        # Asegúrate de que la conexión se cierre solo si se abrió con éxito
         if db:
             db.close()
-            print("Conexión a la base de datos cerrada.")
 
-
-@app.route('/info')
-def info():
-    return render_template('data.html')
-
-@app.route('/data')
-def get_data():
-    """
-    Endpoint de la API para obtener los datos de la base de datos.
-    """
-    data = get_db_data()
-    # Si hay un error, devuelve una respuesta con un código de estado apropiado
-    if "error" in data:
-        return jsonify(data), 500
-    return jsonify(data)
 
 @app.route('/')
 def home():
-    """
-    Ruta que sirve la página principal HTML.
-    """
-    return render_template('index.html')
-
+    return "<h1 style='text-align:center;'>Bienvenido al Dashboard COVID-19</h1><p style='text-align:center;'><a href='/evolucion'>Ir al Dashboard</a></p>"
 
 if __name__ == '__main__':
-    # El puerto se puede configurar también con variables de entorno
-    port = int(getenv('PORT', 5000))
-    app.run(debug=True, port=port)
+    app.run(debug=True, port=5000)

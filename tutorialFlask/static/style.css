@@ -102,7 +102,7 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1rem 1.5rem;
+    padding: 1rem;
 }
 
 .menu-toggle label {
@@ -115,7 +115,47 @@ header {
 
 }
 
+.header-icons span {
+    display: inline-block;
+    margin-left: 0.7rem;
+    font-size: 1.4rem;
+    cursor: pointer;
+}
+
 .menu-toggle label:hover {
     background: #efefef;
     cursor: pointer;
+}
+
+.main-content {
+    margin-left: 280px;
+}
+
+main {
+    padding: 1.5rem;
+    background: #f1f5f9;
+    min-height: calc(100vh - 70px);
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+
+}
+
+.header-actions button {
+    outline: none;
+    color: #fff;
+    background: #5850ec;
+    border: none;
+    padding: 0.6rem 1rem;
+    margin-left: 1rem;
+    border-radius: 3px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.header-actions button span {
+    font-size: 1.2rem;
+    margin-right: 0.3rem;
 }

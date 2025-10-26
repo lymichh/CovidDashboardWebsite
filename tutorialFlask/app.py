@@ -144,7 +144,7 @@ def evolucion_data(pais):
 
 @app.route('/')
 def home():
-    return "<h1 style='text-align:center;'>Bienvenido al Dashboard COVID-19</h1><p style='text-align:center;'><a href='/evolucion'>Ir al Dashboard</a></p>"
+    return render_template('index.html')
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

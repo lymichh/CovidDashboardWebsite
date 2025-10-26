@@ -159,3 +159,49 @@ main {
     font-size: 1.2rem;
     margin-right: 0.3rem;
 }
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-gap: 3rem;
+    margin-top: 2rem;
+}
+
+.card-single {
+    background: #fff;
+    padding: 1rem;
+    box-shadow: 4px 4px 10px rgba(0,0,0,0.1);
+    border-radius: 2px;
+}
+
+.card-flex {
+    display: flex;
+    grid-template-columns: 70% auto;
+    align-items: center;
+}
+
+.card-head span {
+    display: block;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    color: #555;
+}
+
+.card-head small {
+    font-weight: 600;
+    color: #555;
+}
+
+.card-info h2 {
+    font-size: 2.2rem;
+    color: #333;
+}
+
+.card-chart span {
+    font-size: 5rem;
+}
+
+.card-chart.success span {
+    color: tomato;
+}
+

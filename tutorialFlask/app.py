@@ -4,6 +4,8 @@ from os import getenv
 import pandas as pd
 import plotly.express as px
 import plotly.io as pio
+import json
+import urllib.request
 
 app = Flask(__name__)
 
@@ -150,6 +152,56 @@ def evolucion_data(pais):
 #------- FIN QUERY 1
 
 
+#------- QUERY 2: MAPA DE CALOR
+def figure_map(df):
+    # GeoJSON mundial (de Natural Earth, alojado en Plotly)
+    url = "https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json"
+    with urllib.request.urlopen(url) as response:
+        geojson = json.load(response)
+
+    fig = px.choropleth_mapbox(
+        df,
+        geojson=geojson,
+        locations='Country_Region',
+        featureidkey='properties.name',  # Coincide con los nombres del campo Country_Region
+        color='TotalConfirmed',
+        color_continuous_scale="Reds",
+        range_color=(0, df['TotalConfirmed'].max()),
+        mapbox_style="carto-positron",
+        zoom=1,
+        center={"lat": 20, "lon": 0},
+        opacity=0.7,
+        labels={'TotalConfirmed': 'Casos Confirmados'},
+        title='Mapa de Casos Confirmados por País'
+    )
+
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=40, b=0),
+        height=600,
+        title_x=0.5,
+        title_font=dict(size=22, color="#1e3a8a"),
+        paper_bgcolor="rgba(0,0,0,0)",
+        mapbox_accesstoken=None
+    )
+    return fig
+    
+
+@app.route('/mapa')
+def mapa():
+    query = """
+        SELECT Country_Region, 
+               SUM(Confirmed) AS TotalConfirmed
+        FROM dbo.covid_19_clean_complete
+        GROUP BY Country_Region;
+    """
+    
+    df = run_query(query)
+    fig = figure_map(df)
+    graph_html = pio.to_html(fig, full_html=False, div_id='mapa_graph')
+
+    return render_template('mapa.html', graph_html=graph_html)
+
+#------- FIN QUERY 2
 
 # Ruta principal
 @app.route('/')

@@ -60,27 +60,39 @@
     </div>
   </div>
 
-  <!-- Pie de página -->
-  <footer class="text-center text-gray-600 mt-10 mb-6">
-    Desarrollado por <span class="font-semibold text-blue-700">Santiago Vengoechea</span> · Universidad del Norte
-  </footer>
 
   <!-- Script para actualizar la gráfica dinámicamente -->
   <script>
-    const paisSelect = document.getElementById('pais');
-    const chartContainer = document.getElementById('chart-container');
+  const paisSelect = document.getElementById('pais');
+  const chartContainer = document.getElementById('chart-container');
 
-    paisSelect.addEventListener('change', async () => {
-      const pais = paisSelect.value;
+  paisSelect.addEventListener('change', async () => {
+    const pais = paisSelect.value;
 
-      // Llamada al endpoint Flask para obtener la nueva gráfica
+    try {
       const response = await fetch(`/evolucion_data/${pais}`);
       const data = await response.json();
 
-      // Reemplaza el contenido del gráfico
-      chartContainer.innerHTML = data.html;
-    });
-  </script>
+      if (data.html) {
+        // En caso de error o mensaje vacío
+        chartContainer.innerHTML = data.html;
+        return;
+      }
+
+      // Parsear el JSON de Plotly
+      const fig = JSON.parse(data.json);
+
+      // Usar Plotly.react() para actualizar la figura existente
+      Plotly.react(chartContainer, fig.data, fig.layout);
+      
+    } catch (error) {
+      chartContainer.innerHTML = `<p class="text-center text-red-500 font-semibold">
+        Error al cargar los datos: ${error.message}
+      </p>`;
+      console.error("Error actualizando gráfico:", error);
+    }
+  });
+</script>
 
 </body>
 </html>

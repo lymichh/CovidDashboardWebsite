@@ -32,27 +32,30 @@
     <div>
       <a href="/evolucion" class="mx-3 hover:underline font-medium">Evolución</a>
       <a href="/comparacion" class="mx-3 hover:underline font-medium">Comparación</a>
-      <a href="/mortalidad" class="mx-3 hover:underline font-medium">Mortalidad</a>
+      <a href="/muerte_continente" class="mx-3 hover:underline font-medium">Muertes/Continente</a>
       <a href="/recuperados" class="mx-3 hover:underline font-medium">Recuperados</a>
-      <a href="/mapa" class="mx-3 hover:underline font-medium">Mapa</a>
+      <a href="/mapa" class="mx-3 hover:underline font-medium">Mapa Geográfico</a>
     </div>
   </nav>
 
   <!-- Contenido principal -->
   <div class="max-w-5xl mx-auto mt-10 p-8 bg-white shadow-2xl rounded-2xl fade-in">
     <h2 class="text-3xl font-bold text-center mb-8 text-blue-700">
-      Evolución de casos COVID-19 por país
+      {{ titulo }}
     </h2>
 
-    <!-- Selector de país -->
-    <div class="flex justify-center mb-6">
-      <label for="pais" class="text-lg font-semibold mr-3 text-gray-700">Selecciona un país:</label>
-      <select id="pais" class="border border-gray-300 rounded-lg px-4 py-2 shadow-sm focus:ring-2 focus:ring-blue-400">
-        {% for pais in paises %}
-          <option value="{{ pais }}" {% if pais == pais_default %}selected{% endif %}>{{ pais }}</option>
-        {% endfor %}
-      </select>
-    </div>
+    {% if request.path == '/evolucion' %}
+      <!-- Selector de país -->
+      <div class="flex justify-center mb-6">
+        <label for="pais" class="text-lg font-semibold mr-3 text-gray-700">Selecciona un país:</label>
+        <select id="pais" class="border border-gray-300 rounded-lg px-4 py-2 shadow-sm focus:ring-2 focus:ring-blue-400">
+          {% for pais in paises %}
+            <option value="{{ pais }}" {% if pais == pais_default %}selected{% endif %}>{{ pais }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    {% endif %}
+
 
     <!-- Contenedor del gráfico -->
     <div id="chart-container" class="bg-gray-50 p-4 rounded-xl shadow-inner fade-in">

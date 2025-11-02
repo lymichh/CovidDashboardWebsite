@@ -11,11 +11,11 @@ app = Flask(__name__)
 
 # --- CONFIGURACIÓN DE LA CONEXIÓN ---
 
-server = getenv('DB_SERVER', 'localhost\\SQLEXPRESS')
+##server = getenv('DB_SERVER', 'localhost\\SQLEXPRESS')
 #database = getenv('DB_DATABASE', 'COVID-19')
 #username = getenv('DB_USERNAME', 'project')
 #password = getenv('DB_PASSWORD', 'project123')
-#server = 'localhost,1433'
+server = 'localhost,1433'
 database = 'COVID_19'
 username = 'project'
 password = 'project123'
@@ -202,6 +202,114 @@ def mapa():
     return render_template('mapa.html', graph_html=graph_html)
 
 #------- FIN QUERY 2
+
+#------- QUERY 3: COMPARACION PAISES VS CASOS CONFIRMADOS
+@app.route('/comparacion')
+def comparacion():
+    query = """
+        SELECT TOP 10 Country_Region, SUM(Confirmed) AS TotalConfirmados
+        FROM dbo.covid_19_clean_complete
+        GROUP BY Country_Region
+        ORDER BY TotalConfirmados DESC;
+    """
+    df = run_query(query)
+
+    fig = px.bar(
+    df,
+    x='TotalConfirmados',
+    y='Country_Region',
+    orientation='h',
+    color_discrete_sequence=['#7c3aed'],  # 💜 morado vibrante
+    text='TotalConfirmados',
+    title='Top 10 países con más casos confirmados'
+    )
+
+    # Ajustes visuales para barras sólidas y uniformes
+    fig.update_traces(
+        marker=dict(
+            color='#7c3aed',      
+            line=dict(color='#4c1d95', width=1.5)  
+        ),
+        opacity=1,                
+        texttemplate='%{text:,}', 
+        textposition='inside',     
+        insidetextanchor='start',
+        insidetextfont=dict(color='white', size=13)
+    )
+
+    fig.update_traces(
+        hovertemplate='<b>%{y}</b><br>Casos: %{x:,}',
+        texttemplate='%{text:,}',  # separa miles con coma
+        textposition='outside'
+    )
+
+    # Convertimos el gráfico a HTML embebible
+    import plotly.io as pio
+    graph_html = pio.to_html(fig, full_html=False)
+
+    return render_template('dashboard.html', graph_html=graph_html, titulo="Comparación Global de Casos COVID-19")
+
+#------- FIN QUERY 3
+
+#------- QUERY 4: DISTRIBUCIÓN DE MUERTES POR CONTINENTE
+
+@app.route('/muerte_continente')
+def muerte_continente():
+    query = """
+        SELECT 
+            w.Continent as Continente, SUM(c.Deaths) AS TotalMuertes
+        FROM dbo.country_wise_latest c
+        JOIN dbo.worldometer_data w
+            ON c.Country_Region = w.Country_Region
+        WHERE w.Continent IS NOT NULL
+        GROUP BY w.Continent
+        ORDER BY TotalMuertes DESC;
+    """
+    df = run_query(query)
+
+    fig = px.pie(
+        df,
+        names='Continente',
+        values='TotalMuertes',
+        title='Distribución de muertes por continente',
+        color_discrete_sequence=px.colors.sequential.Greens_r,
+        hole=0.4 
+    )   
+
+    fig.update_traces(
+        textinfo='label+percent',
+        textposition='outside',
+        insidetextorientation='radial',
+        textfont=dict(size=14, color='#333'),
+        hovertemplate='<b>%{label}</b><br>Muertes: %{value:,}<br>Porcentaje: %{percent}',
+        pull=[0.05 if i == 0 else 0 for i in range(len(df))],     # resalta el más alto
+        marker=dict(line=dict(color='white', width=2))
+    )
+
+    fig.update_layout(
+        title=dict(
+            text='Distribución de muertes por continente',
+            x=0.5,  # centrado
+            font=dict(size=24, color='#4c1d95', family='Inter')
+        ),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        margin=dict(t=80, b=80, l=100, r=100),  # más aire alrededor del gráfico
+        legend=dict(
+            orientation="h",  # horizontal
+            y=-0.2,
+            x=0.5,
+            xanchor='center',
+            yanchor='top',
+            font=dict(size=13)
+        )
+    )
+    
+    graph_html = pio.to_html(fig, full_html=False)
+
+    return render_template('dashboard.html', graph_html=graph_html, titulo="Distribución de muertes por continente")
+
+#------- FIN QUERY 3
 
 # Ruta principal
 @app.route('/')

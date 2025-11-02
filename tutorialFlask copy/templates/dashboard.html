@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>COVID-19 Dashboard Interactivo</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+      min-height: 100vh;
+    }
+    
+    .glass-effect {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    .fade-in {
+      animation: fadeIn 0.6s ease-in-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .slide-in {
+      animation: slideIn 0.4s ease-out;
+    }
+    
+    @keyframes slideIn {
+      from { transform: translateX(-100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    .control-panel {
+      transition: all 0.3s ease;
+    }
+    
+    .control-panel:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    }
+    
+    .nav-link {
+      position: relative;
+      transition: all 0.3s ease;
+    }
+    
+    .nav-link::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      width: 0;
+      height: 3px;
+      background: white;
+      transition: width 0.3s ease;
+    }
+    
+    .nav-link:hover::after {
+      width: 100%;
+    }
+    
+    .stat-card {
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    
+    .stat-card:hover {
+      transform: scale(1.05);
+      box-shadow: 0 15px 35px rgba(102, 126, 234, 0.3);
+    }
+    
+    .loading-spinner {
+      border: 3px solid rgba(102, 126, 234, 0.2);
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .tooltip-custom {
+      position: relative;
+    }
+    
+    .tooltip-custom:hover .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+    
+    .tooltip-text {
+      visibility: hidden;
+      opacity: 0;
+      background-color: #333;
+      color: white;
+      text-align: center;
+      padding: 8px 12px;
+      border-radius: 6px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      transform: translateX(-50%);
+      transition: opacity 0.3s;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body class="text-gray-900">
+
+  <!-- Navbar con efecto glass -->
+  <nav class="glass-effect text-gray-800 p-5 shadow-2xl sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <span class="text-4xl">🦠</span>
+        <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+          COVID-19 Analytics
+        </h1>
+      </div>
+      <div class="flex space-x-2">
+        <a href="/evolucion" class="nav-link px-4 py-2 rounded-lg hover:bg-purple-100 font-medium transition">
+          📈 Evolución
+        </a>
+        <a href="/kpi_dashboard" class="mx-3 hover:underline font-medium">📊 KPIs</a>
+        <a href="/muerte_continente" class="nav-link px-4 py-2 rounded-lg hover:bg-purple-100 font-medium transition">
+          ☠️ Continentes
+        </a>
+        <a href="/burbujas_animado" class="mx-3 hover:underline font-medium">🫧 Burbujas</a>
+        <a href="/mapa" class="nav-link px-4 py-2 rounded-lg hover:bg-purple-100 font-medium transition">
+          🗺️ Mapa
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Contenedor principal -->
+  <div class="max-w-7xl mx-auto mt-8 px-4">
+    
+    <!-- Panel de control interactivo -->
+    {% if tipo_grafico == 'barras' %}
+    <div class="glass-effect p-6 rounded-2xl shadow-xl mb-6 fade-in control-panel">
+      <h3 class="text-xl font-bold mb-4 text-purple-700 flex items-center">
+        <span class="mr-2">⚙️</span> Panel de Control
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        
+        <!-- Selector de cantidad -->
+        <div class="tooltip-custom">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">
+            📊 Cantidad de países
+          </label>
+          <select id="limit-select" class="w-full border-2 border-purple-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition">
+            <option value="5">Top 5</option>
+            <option value="10" selected>Top 10</option>
+            <option value="15">Top 15</option>
+            <option value="20">Top 20</option>
+            <option value="50">Top 50</option>
+          </select>
+          <span class="tooltip-text">Selecciona cuántos países mostrar</span>
+        </div>
+
+        <!-- Selector de orientación -->
+        <div class="tooltip-custom">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">
+            🔄 Orientación
+          </label>
+          <select id="orientation-select" class="w-full border-2 border-purple-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition">
+            <option value="h" selected>Horizontal</option>
+            <option value="v">Vertical</option>
+          </select>
+          <span class="tooltip-text">Cambia la orientación del gráfico</span>
+        </div>
+
+        <!-- Botón de actualizar -->
+        <div class="flex items-end">
+          <button id="update-btn" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-2 px-6 rounded-lg hover:from-purple-700 hover:to-pink-700 transition transform hover:scale-105 shadow-lg">
+            🔄 Actualizar Gráfico
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if tipo_grafico == 'pastel' %}
+    <div class="glass-effect p-6 rounded-2xl shadow-xl mb-6 fade-in control-panel">
+      <h3 class="text-xl font-bold mb-4 text-green-700 flex items-center">
+        <span class="mr-2">⚙️</span> Opciones de Visualización
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        <!-- Selector de tipo de gráfico -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">
+            📊 Tipo de Vista
+          </label>
+          <select id="chart-type" class="w-full border-2 border-green-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent transition">
+            <option value="pie">🍕 Gráfico Circular</option>
+            <option value="donut" selected>🍩 Gráfico Dona</option>
+            <option value="bar">📊 Gráfico de Barras</option>
+          </select>
+        </div>
+
+        <!-- Toggle de animación -->
+        <div class="flex items-end">
+          <label class="flex items-center cursor-pointer space-x-3 w-full">
+            <input type="checkbox" id="animation-toggle" checked class="form-checkbox h-5 w-5 text-green-600 rounded">
+            <span class="text-sm font-semibold text-gray-700">✨ Animaciones Activas</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Selector de país para evolución -->
+    {% if request.path == '/evolucion' %}
+    <div class="glass-effect p-6 rounded-2xl shadow-xl mb-6 fade-in control-panel">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+        <label class="text-lg font-bold text-purple-700 flex items-center">
+          <span class="text-2xl mr-2">🌎</span>
+          Selecciona un país:
+        </label>
+        <select id="pais" class="flex-1 md:max-w-md border-2 border-purple-300 rounded-lg px-4 py-3 shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition text-lg">
+          {% for pais in paises %}
+            <option value="{{ pais }}" {% if pais == pais_default %}selected{% endif %}>{{ pais }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Contenedor principal del gráfico -->
+    <div class="glass-effect p-8 rounded-2xl shadow-2xl fade-in">
+      <h2 class="text-3xl font-bold text-center mb-8 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+        {{ titulo }}
+      </h2>
+
+      <!-- Loading spinner -->
+      <div id="loading-spinner" class="hidden">
+        <div class="loading-spinner"></div>
+        <p class="text-center text-gray-600 mt-2">Cargando datos...</p>
+      </div>
+
+      <!-- Contenedor del gráfico -->
+      <div id="chart-container" class="bg-gradient-to-br from-gray-50 to-white p-6 rounded-xl shadow-inner min-h-[500px] slide-in">
+        {{ graph_html|safe }}
+      </div>
+    </div>
+
+    <!-- Estadísticas adicionales (opcional) -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8 mb-8">
+      <div class="glass-effect p-6 rounded-2xl shadow-xl stat-card">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-600 font-semibold">Total Global</p>
+            <p class="text-2xl font-bold text-purple-600">Calculando...</p>
+          </div>
+          <span class="text-4xl">🌍</span>
+        </div>
+      </div>
+      
+      <div class="glass-effect p-6 rounded-2xl shadow-xl stat-card">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-600 font-semibold">Países Afectados</p>
+            <p class="text-2xl font-bold text-pink-600">200+</p>
+          </div>
+          <span class="text-4xl">🗺️</span>
+        </div>
+      </div>
+      
+      <div class="glass-effect p-6 rounded-2xl shadow-xl stat-card">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-600 font-semibold">Última Actualización</p>
+            <p class="text-2xl font-bold text-indigo-600">2024</p>
+          </div>
+          <span class="text-4xl">📅</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="glass-effect mt-12 py-6 text-center text-gray-700">
+    <p class="font-medium">💉 COVID-19 Dashboard | Datos actualizados</p>
+    <p class="text-sm mt-2">Desarrollado con 💜 usando Flask + Plotly</p>
+  </footer>
+
+  <!-- Scripts de interactividad -->
+  <script>
+    const chartContainer = document.getElementById('chart-container');
+    const loadingSpinner = document.getElementById('loading-spinner');
+
+    // Función para mostrar/ocultar loading
+    function toggleLoading(show) {
+      if (show) {
+        loadingSpinner.classList.remove('hidden');
+        chartContainer.style.opacity = '0.3';
+      } else {
+        loadingSpinner.classList.add('hidden');
+        chartContainer.style.opacity = '1';
+      }
+    }
+
+    // Script para evolución de países
+    const paisSelect = document.getElementById('pais');
+    if (paisSelect) {
+      paisSelect.addEventListener('change', async () => {
+        const pais = paisSelect.value;
+        toggleLoading(true);
+
+        try {
+          const response = await fetch(`/evolucion_data/${pais}`);
+          const data = await response.json();
+
+          if (data.html) {
+            chartContainer.innerHTML = data.html;
+          } else {
+            const fig = JSON.parse(data.json);
+            Plotly.react(chartContainer, fig.data, fig.layout);
+          }
+        } catch (error) {
+          chartContainer.innerHTML = `
+            <div class="text-center p-8">
+              <span class="text-6xl">⚠️</span>
+              <p class="text-red-500 font-semibold mt-4">Error al cargar los datos</p>
+              <p class="text-gray-500 text-sm mt-2">${error.message}</p>
+            </div>
+          `;
+        } finally {
+          toggleLoading(false);
+        }
+      });
+    }
+
+    // Script para actualizar gráfico de barras
+    const updateBtn = document.getElementById('update-btn');
+    if (updateBtn) {
+      updateBtn.addEventListener('click', async () => {
+        const limit = document.getElementById('limit-select').value;
+        const orientation = document.getElementById('orientation-select').value;
+        
+        toggleLoading(true);
+        
+        try {
+          const response = await fetch(`/comparacion?limit=${limit}&orientation=${orientation}`);
+          const html = await response.text();
+          
+          // Extraer solo el contenido del gráfico
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const newGraph = doc.getElementById('chart-container').innerHTML;
+          
+          chartContainer.innerHTML = newGraph;
+          
+          // Animación de entrada
+          chartContainer.classList.remove('slide-in');
+          void chartContainer.offsetWidth; // Trigger reflow
+          chartContainer.classList.add('slide-in');
+          
+        } catch (error) {
+          console.error('Error:', error);
+          alert('Error al actualizar el gráfico');
+        } finally {
+          toggleLoading(false);
+        }
+      });
+    }
+
+    // Toggle de animaciones
+    const animationToggle = document.getElementById('animation-toggle');
+    if (animationToggle) {
+      animationToggle.addEventListener('change', (e) => {
+        const plots = document.querySelectorAll('.plotly');
+        plots.forEach(plot => {
+          Plotly.relayout(plot, {
+            'transition': {
+              'duration': e.target.checked ? 500 : 0
+            }
+          });
+        });
+      });
+    }
+
+    // Efecto de hover en las tarjetas de estadísticas
+    document.querySelectorAll('.stat-card').forEach(card => {
+      card.addEventListener('mouseenter', function() {
+        this.style.transform = 'scale(1.05) rotate(1deg)';
+      });
+      card.addEventListener('mouseleave', function() {
+        this.style.transform = 'scale(1) rotate(0deg)';
+      });
+    });
+  </script>
+
+  <script>
+  (function(){
+    // Espera a que el DOM esté listo
+    document.addEventListener('DOMContentLoaded', function() {
+      // Buscamos el primer div que tenga la clase de Plotly dentro del chart-container
+      const chartContainer = document.getElementById('chart-container');
+
+      if (!chartContainer) return;
+
+      // Plotly inserta un <div> con clase "plotly" / "plotly-graph-div".
+      // Buscamos el primer hijo que parezca un gráfico Plotly.
+      const plotDiv = chartContainer.querySelector('.plotly') || chartContainer.querySelector('.plotly-graph-div') || chartContainer.querySelector('div');
+
+      if (!plotDiv || typeof Plotly === 'undefined') {
+        console.warn('No se encontró plotly o el div del gráfico aún no está listo.');
+        return;
+      }
+
+      // Guardamos el pull por defecto (por si ya tenía valores)
+      let defaultPull = null;
+      if (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].pull) {
+        defaultPull = plotDiv.data[0].pull.slice();
+      }
+
+      // Handler: cuando pasas el cursor por una porción
+      plotDiv.on('plotly_hover', function(eventData) {
+        try {
+          const pts = eventData.points[0];
+          const pointIndex = pts.pointNumber;
+          const n = pts.data.labels.length;
+
+          // construimos un arreglo de pull con 0s y pequeño desplazamiento en el punto hover
+          const newPull = new Array(n).fill(0);
+          newPull[pointIndex] = 0.12; // cuánto "sale" la porción
+
+          // Opcional: también aumentamos el ancho del borde (para destacar)
+          const newLineWidths = new Array(n).fill(2);
+          newLineWidths[pointIndex] = 4;
+
+          // Aplicamos estilo con restyle
+          Plotly.restyle(plotDiv, {'pull': [newPull], 'marker.line.width': [newLineWidths]}, [0]);
+        } catch (e) {
+          console.error('Error en plotly_hover:', e);
+        }
+      });
+
+      // Handler: cuando quitas el cursor (restaurar)
+      plotDiv.on('plotly_unhover', function(eventData) {
+        try {
+          const pts = eventData ? eventData.points && eventData.points[0] : null;
+          const n = (plotDiv.data && plotDiv.data[0] && plotDiv.data[0].labels) ? plotDiv.data[0].labels.length : 0;
+
+          // Si teníamos defaultPull, lo restauramos; si no, ponemos ceros.
+          const resetPull = defaultPull ? defaultPull : new Array(n).fill(0);
+          const resetLineWidths = new Array(n).fill(2);
+
+          Plotly.restyle(plotDiv, {'pull': [resetPull], 'marker.line.width': [resetLineWidths]}, [0]);
+        } catch (e) {
+          console.error('Error en plotly_unhover:', e);
+        }
+      });
+
+    });
+  })();
+  </script>
+
+
+</body>
+</html>
+

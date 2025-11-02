@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapa COVID-19</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #eef2ff 0%, #e0f2fe 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+  </style>
+</head>
+<body class="text-gray-900">
+
+  <!-- Navbar -->
+  <nav class="bg-blue-700 text-white p-4 shadow-lg flex justify-between items-center">
+    <h1 class="text-2xl font-bold">🌍 COVID-19 Dashboard</h1>
+    <div>
+      <a href="/evolucion" class="mx-3 hover:underline font-medium">Evolución</a>
+      <a href="/comparacion" class="mx-3 hover:underline font-medium">Comparación</a>
+      <a href="/mortalidad" class="mx-3 hover:underline font-medium">Mortalidad</a>
+      <a href="/recuperados" class="mx-3 hover:underline font-medium">Recuperados</a>
+      <a href="/mapa" class="mx-3 underline font-semibold">Mapa</a>
+    </div>
+  </nav>
+
+  <!-- Contenido principal -->
+  <div class="max-w-6xl mx-auto mt-10 p-8 bg-white shadow-2xl rounded-2xl fade-in">
+    <h2 class="text-3xl font-bold text-center mb-8 text-blue-700">
+      Mapa Mundial de Casos Confirmados COVID-19
+    </h2>
+
+    <div id="mapa-container" class="rounded-xl shadow-inner">
+      {{ graph_html|safe }}
+    </div>
+  </div>
+
+
+</body>
+</html>

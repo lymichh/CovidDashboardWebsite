@@ -30,17 +30,35 @@
     </div>
   </nav>
 
+
   <!-- Contenido principal -->
   <div class="max-w-6xl mx-auto mt-10 p-8 bg-white shadow-2xl rounded-2xl fade-in">
     <h2 class="text-3xl font-bold text-center mb-8 text-blue-700">
       Mapa Mundial de Casos Confirmados COVID-19
     </h2>
 
+    <!-- Selector de tipo -->
+    <div class="flex justify-center mb-6">
+      <label class="text-lg font-semibold mr-3 text-gray-700">Visualizar:</label>
+      <select id="tipo" class="border border-gray-300 rounded-lg px-4 py-2 shadow-sm focus:ring-2 focus:ring-blue-400">
+        <option value="CasosPorMillon" {% if tipo == 'CasosPorMillon' %}selected{% endif %}>Casos por millón</option>
+        <option value="TasaMortalidad" {% if tipo == 'TasaMortalidad' %}selected{% endif %}>Tasa de mortalidad (%)</option>
+      </select>
+    </div>
+
     <div id="mapa-container" class="rounded-xl shadow-inner">
       {{ graph_html|safe }}
     </div>
   </div>
 
+    <script>
+        const tipoSelect = document.getElementById('tipo');
+        tipoSelect.addEventListener('change', () => {
+            const selectedTipo = tipoSelect.value;
+            // Recargar la página con el nuevo parámetro 'tipo'
+            window.location.href = `/mapa?tipo=${selectedTipo}`;
+        });
+    </script>
 
 </body>
 </html>

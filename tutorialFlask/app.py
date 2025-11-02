@@ -1,4 +1,5 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
+import plotly
 import pyodbc
 from os import getenv
 import pandas as pd
@@ -6,6 +7,7 @@ import plotly.express as px
 import plotly.io as pio
 import json
 import urllib.request
+import numpy as np
 
 app = Flask(__name__)
 
@@ -153,26 +155,31 @@ def evolucion_data(pais):
 
 
 #------- QUERY 2: MAPA DE CALOR
-def figure_map(df):
+def figure_map(df, tipo='CasosPorMillon'):
     # GeoJSON mundial (de Natural Earth, alojado en Plotly)
+    df[tipo] = pd.to_numeric(df[tipo], errors='coerce')
+
     url = "https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json"
     with urllib.request.urlopen(url) as response:
         geojson = json.load(response)
+
+    label = "Casos por millón de habitantes" if tipo == "CasosPorMillon" else "Tasa de mortalidad (%)"
+    color_scale = 'Reds' if tipo == "CasosPorMillon" else 'Blues'
 
     fig = px.choropleth_mapbox(
         df,
         geojson=geojson,
         locations='Country_Region',
         featureidkey='properties.name',  # Coincide con los nombres del campo Country_Region
-        color='TotalConfirmed',
-        color_continuous_scale="Reds",
-        range_color=(0, df['TotalConfirmed'].max()),
+        color=tipo,
+        color_continuous_scale= color_scale,
+        range_color=(0, df[tipo].max()),
         mapbox_style="carto-positron",
         zoom=1,
         center={"lat": 20, "lon": 0},
         opacity=0.7,
-        labels={'TotalConfirmed': 'Casos Confirmados'},
-        title='Mapa de Casos Confirmados por País'
+        labels={tipo: label},
+        title=f'Mapa de {label} por País'
     )
 
     fig.update_layout(
@@ -188,20 +195,159 @@ def figure_map(df):
 
 @app.route('/mapa')
 def mapa():
+    tipo = request.args.get('tipo', 'CasosPorMillon')
     query = """
-        SELECT Country_Region, 
-               SUM(Confirmed) AS TotalConfirmed
-        FROM dbo.covid_19_clean_complete
-        GROUP BY Country_Region;
+        SELECT 
+                Country_Region,
+                Population,
+                (TotalCases * 1.0 / Population) * 1000000 AS CasosPorMillon,
+                (TotalDeaths * 100.0 / TotalCases) AS TasaMortalidad
+            FROM dbo.worldometer_data
+            WHERE Population IS NOT NULL 
+            AND Population > 0
+            AND TotalCases > 0
+            ORDER BY CasosPorMillon DESC;
     """
     
     df = run_query(query)
-    fig = figure_map(df)
+    fig = figure_map(df, tipo)
     graph_html = pio.to_html(fig, full_html=False, div_id='mapa_graph')
 
-    return render_template('mapa.html', graph_html=graph_html)
+    return render_template('mapa.html', graph_html=graph_html, tipo=tipo)
 
 #------- FIN QUERY 2
+
+
+#------- Queery 3: Race-chart (top 15 paises con mas muertes en el tiempo)
+
+
+@app.route("/race-chart")
+def race_chart():
+    query = """
+    SELECT
+        Date,
+        Country_Region,
+        WHO_Region,
+        SUM(Confirmed) AS casos_totales,
+        SUM(Deaths) AS muertes_totales
+    FROM covid_19_clean_complete
+    GROUP BY Date, Country_Region, WHO_Region
+    HAVING SUM(Confirmed) > 0  -- Filtrar países sin casos
+    ORDER BY Date, Country_Region;
+    """
+    df = run_query(query)
+    
+    print(f"Total de filas: {len(df)}")
+    print(df.head())
+    
+    # Asegurar que Date es string en formato correcto
+    df['Date'] = df['Date'].astype(str)
+    
+    # Limpiar datos
+    #df = df.replace([np.inf, -np.inf], np.nan).fillna(0)
+    #df["casos_totales"] = df["casos_totales"].clip(lower=0)
+    #df["muertes_totales"] = df["muertes_totales"].clip(lower=0)
+    
+    # Filtrar solo fechas semanales (último día de la semana)
+    df['Date_dt'] = pd.to_datetime(df['Date'])
+    df['week'] = df['Date_dt'].dt.to_period('W').astype(str)
+    
+    # Tomar el último día de cada semana por país
+    df_weekly = df.sort_values('Date').groupby(['week', 'Country_Region', 'WHO_Region']).last().reset_index()
+    
+    
+    # Para cada período, obtener el top 15
+    top_n = 15
+    df_top = df_weekly.groupby('week', group_keys=False).apply(
+        lambda x: x.nlargest(top_n, 'muertes_totales')
+    ).reset_index(drop=True)
+    
+    
+    # Crear el gráfico
+    fig = px.bar(
+        df_top,
+        x="muertes_totales",
+        y="Country_Region",
+        color="WHO_Region",
+        animation_frame="week",  
+        orientation='h',
+        title="🏆 Top 15 Países con más Muertes de COVID-19",
+        labels={
+            "muertes_totales": "Muertes Totales",
+            "Country_Region": "País",
+            "WHO_Region": "Región OMS",
+            "week": "Semana"
+        },
+        color_discrete_map={
+            "Africa": "#E74C3C",
+            "Americas": "#3498DB",
+            "Eastern Mediterranean": "#F39C12",
+            "Europe": "#9B59B6",
+            "South-East Asia": "#1ABC9C",
+            "Western Pacific": "#E67E22"
+        },
+        range_x=[0, df_top['muertes_totales'].max() * 1.1]  # Fijar rango X
+    )
+    
+    # Mejorar la apariencia
+    fig.update_layout(
+        template="plotly_white",
+        xaxis_title="Muertes Totales",
+        yaxis_title="",
+        title_font=dict(size=24, color="#1d4ed8", family="Arial Black"),
+        height=700,
+        margin=dict(l=180, r=40, t=100, b=60),
+        yaxis={
+            'categoryorder': 'total ascending',
+            'tickfont': dict(size=13, family="Arial")
+        },
+        xaxis={
+            'tickformat': ',.0f',
+            'gridcolor': '#E8E8E8'
+        },
+        font=dict(size=12, family="Arial"),
+        showlegend=True,
+        legend=dict(
+            title=dict(text="Región OMS", font=dict(size=14, family="Arial Black")),
+            orientation="v",
+            yanchor="top",
+            y=0.98,
+            xanchor="left",
+            x=1.02,
+            bgcolor="rgba(255,255,255,0.9)",
+            bordercolor="#CCCCCC",
+            borderwidth=1
+        ),
+        plot_bgcolor='#FAFAFA'
+    )
+    
+    # Configurar animación (más fluida)
+    fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 800  # milisegundos por frame
+    fig.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 500
+    
+    # Configurar el slider
+    fig.layout.sliders[0].pad = {"t": 50}
+    fig.layout.sliders[0].currentvalue = {
+        "prefix": "Semana: ",
+        "font": {"size": 16, "color": "#1d4ed8"}
+    }
+    
+    # Agregar valores en las barras
+    fig.update_traces(
+        texttemplate='<b>%{x:,.0f}</b>',
+        textposition='outside',
+        textfont=dict(size=12, family="Arial Black"),
+        marker=dict(
+            line=dict(width=0.5, color='white')
+        )
+    )
+    
+    graph_html = fig.to_html(include_plotlyjs='cdn', div_id='race-chart')
+    return render_template("race_chart.html", graph_html=graph_html)
+
+#------- FIN QUERY 3
+
+
 
 # Ruta principal
 @app.route('/')
@@ -209,6 +355,9 @@ def home():
     return render_template('index.html')
     #return "<h1 style='text-align:center;'>Bienvenido al Dashboard COVID-19</h1><p style='text-align:center;'><a href='/evolucion'>Ir al Dashboard</a></p>"
 
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

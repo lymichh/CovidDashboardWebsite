@@ -13,11 +13,11 @@ app = Flask(__name__)
 
 # --- CONFIGURACIÓN DE LA CONEXIÓN ---
 
-#server = getenv('DB_SERVER', 'localhost\\SQLEXPRESS')
+server = getenv('DB_SERVER', 'localhost\\SQLEXPRESS')
 #database = getenv('DB_DATABASE', 'COVID-19')
 #username = getenv('DB_USERNAME', 'project')
 #password = getenv('DB_PASSWORD', 'project123')
-server = 'localhost,1433'
+#server = 'localhost,1433'
 database = 'COVID_19'
 username = 'project'
 password = 'project123'
@@ -179,6 +179,194 @@ def figure_evolucion(df, pais):
     return fig
 
 #------- FIN QUERY 1
+
+@app.route('/mapa2')
+def mapa2():
+    tipo = request.args.get('tipo', 'Confirmed')
+    
+    query = """
+        SELECT  
+            UID,
+            Admin2 AS County,
+            Province_State AS State,
+            Country_Region,
+            Lat,
+            Long,
+            Combined_Key,
+            Date,
+            Confirmed,
+            Deaths
+        FROM usa_county_wise
+        WHERE Lat IS NOT NULL 
+          AND Long IS NOT NULL
+          AND Admin2 IS NOT NULL
+          AND Confirmed > 0
+    """
+    
+    df = run_query(query)
+    
+    print(f"📊 Registros iniciales: {len(df)}")
+    
+    # Convertir Date a datetime si es string
+    df['Date'] = pd.to_datetime(df['Date'])
+    
+    # CRÍTICO: Tomar solo el último registro por condado
+    df_latest = df.sort_values('Date').groupby(['County', 'State']).tail(1).reset_index(drop=True)
+    
+    print(f"📍 Condados únicos después de filtrar: {len(df_latest)}")
+    
+    # Limpiar coordenadas
+    df_latest['Lat'] = pd.to_numeric(df_latest['Lat'], errors='coerce')
+    df_latest['Long'] = pd.to_numeric(df_latest['Long'], errors='coerce')
+    
+    # Detectar si las coordenadas están en formato incorrecto (muy grandes)
+    if df_latest['Lat'].abs().max() > 90:
+        print("⚠️ Coordenadas en formato incorrecto, dividiendo por 1e6")
+        df_latest['Lat'] = df_latest['Lat'] / 1e6
+        df_latest['Long'] = df_latest['Long'] / 1e6
+    
+    # Filtrar coordenadas válidas de USA continental
+    df_latest = df_latest[
+        (df_latest['Lat'].between(24, 50)) &  
+        (df_latest['Long'].between(-125, -65))
+    ]
+    
+    print(f"✅ Condados con coordenadas válidas: {len(df_latest)}")
+    print(f"📐 Rango Lat: {df_latest['Lat'].min():.2f} a {df_latest['Lat'].max():.2f}")
+    print(f"📐 Rango Long: {df_latest['Long'].min():.2f} a {df_latest['Long'].max():.2f}")
+    print(df_latest[['County', 'State', 'Lat', 'Long', 'Confirmed', 'Deaths']].head(10))
+    
+    # Calcular tasa de letalidad
+    df_latest['Tasa_Letalidad'] = (df_latest['Deaths'] / df_latest['Confirmed'] * 100).round(2)
+    df_latest = df_latest.replace([np.inf, -np.inf], np.nan).fillna(0)
+    
+    # Generar figura
+    fig = figure_map2(df_latest, tipo)
+    graph_html = pio.to_html(fig, include_plotlyjs='cdn', full_html=False, div_id='mapa_graph')
+    
+    # Calcular estadísticas
+    if df_latest.empty:
+        stats = {
+            'total_condados': 0,
+            'total_casos': 0,
+            'total_muertes': 0,
+            'condado_max': 'N/A',
+            'casos_max': 0,
+            'fecha': 'N/A'
+        }
+    else:
+        max_confirmed = df_latest['Confirmed'].max()
+        max_row = df_latest.loc[df_latest['Confirmed'].idxmax()] if not pd.isna(max_confirmed) else None
+
+        stats = {
+            'total_condados': len(df_latest),
+            'total_casos': int(df_latest['Confirmed'].sum(skipna=True)),
+            'total_muertes': int(df_latest['Deaths'].sum(skipna=True)),
+            'condado_max': f"{max_row['County']}, {max_row['State']}" if max_row is not None else 'N/A',
+            'casos_max': int(max_confirmed) if not pd.isna(max_confirmed) else 0,
+            'fecha': str(df_latest['Date'].max().date()) if not df_latest['Date'].isna().all() else 'N/A'
+        }
+    
+    print(f"📈 Stats: {stats}")
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'html': graph_html, 'stats': stats})
+    
+    return render_template('mapa2.html', graph_html=graph_html, tipo=tipo, stats=stats)
+
+
+def figure_map2(df, tipo='Confirmed'):
+    """Genera el mapa de USA por condados."""
+    
+    config = {
+        'Confirmed': {
+            'label': 'Casos Confirmados',
+            'color_scale': 'Reds',
+            'column': 'Confirmed'
+        },
+        'Deaths': {
+            'label': 'Muertes',
+            'color_scale': 'Oranges',
+            'column': 'Deaths'
+        },
+        'Letalidad': {
+            'label': 'Tasa de Letalidad (%)',
+            'color_scale': 'Blues',
+            'column': 'Tasa_Letalidad'
+        }
+    }
+    
+    selected_config = config.get(tipo, config['Confirmed'])
+    column = selected_config['column']
+    
+    print(f"🎨 Creando mapa con columna: {column}")
+    print(f"📊 Rango de valores: {df[column].min():.2f} a {df[column].max():.2f}")
+    
+    # Crear mapa de burbujas con Mapbox
+    fig = px.scatter_mapbox(
+        df,
+        lat='Lat',
+        lon='Long',
+        size=column,
+        color=column,
+        hover_name='Combined_Key',
+        hover_data={
+            'County': True,
+            'State': True,
+            'Confirmed': ':,',
+            'Deaths': ':,',
+            'Tasa_Letalidad': ':.2f',
+            'Lat': ':.4f',
+            'Long': ':.4f'
+        },
+        color_continuous_scale=selected_config['color_scale'],
+        size_max=40,
+        zoom=3.5,
+        center={"lat": 37.0902, "lon": -95.7129},
+        title=f'📍 Mapa de COVID-19 en USA por Condado: {selected_config["label"]}',
+        labels={
+            column: selected_config['label'],
+            'County': 'Condado',
+            'State': 'Estado',
+            'Confirmed': 'Casos Confirmados',
+            'Deaths': 'Muertes',
+            'Tasa_Letalidad': 'Letalidad (%)',
+            'Lat': 'Latitud',
+            'Long': 'Longitud'
+        }
+    )
+    
+    fig.update_layout(
+        mapbox_style="carto-positron",
+        height=700,
+        margin=dict(l=0, r=0, t=60, b=0),
+        title_x=0.5,
+        title_font=dict(size=22, color="#1d4ed8", family="Arial Black"),
+        paper_bgcolor="rgba(255,255,255,0.95)",
+        coloraxis_colorbar=dict(
+            title=selected_config['label'],
+            thicknessmode="pixels",
+            thickness=15,
+            lenmode="pixels",
+            len=300,
+            yanchor="middle",
+            y=0.5,
+            xanchor="left",
+            x=1.02
+        )
+    )
+    
+    # CORREGIDO: scattermapbox NO acepta 'line' en marker
+    # Solo puedes modificar opacity
+    fig.update_traces(
+        marker=dict(
+            opacity=0.7
+        )
+    )
+    
+    return fig
+
+
 
 
 #------- QUERY 2: MAPA DE CALOR
@@ -380,4 +568,4 @@ def page_not_found(e):
     return render_template('404.html'), 404
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5050)
+    app.run(debug=True, port=5000)

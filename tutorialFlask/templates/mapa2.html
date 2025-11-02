@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mapa Mundial de Casos Confirmados COVID-19</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    .fade-in {
+      animation: fadeIn 1s ease-in;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen"> 
+ 
+ <div class="max-w-7xl mx-auto mt-10 p-8 bg-white shadow-2xl rounded-2xl fade-in">
+  <h2 class="text-3xl font-bold text-center mb-8 text-blue-700">
+    🗺️ Mapa de COVID-19 por Condado (USA)
+  </h2>
+
+  <!-- Estadísticas Principales -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+    <div class="bg-blue-50 rounded-lg p-4 text-center border-2 border-blue-200">
+      <div class="text-2xl font-bold text-blue-600" id="stat-condados">{{ "{:,}".format(stats.total_condados) }}</div>
+      <div class="text-sm text-gray-600 mt-1">Condados</div>
+    </div>
+    <div class="bg-red-50 rounded-lg p-4 text-center border-2 border-red-200">
+      <div class="text-2xl font-bold text-red-600" id="stat-casos">{{ "{:,}".format(stats.total_casos) }}</div>
+      <div class="text-sm text-gray-600 mt-1">Total Casos</div>
+    </div>
+    <div class="bg-orange-50 rounded-lg p-4 text-center border-2 border-orange-200">
+      <div class="text-2xl font-bold text-orange-600" id="stat-muertes">{{ "{:,}".format(stats.total_muertes) }}</div>
+      <div class="text-sm text-gray-600 mt-1">Total Muertes</div>
+    </div>
+    <div class="bg-purple-50 rounded-lg p-4 text-center border-2 border-purple-200">
+      <div class="text-lg font-bold text-purple-600" id="stat-condado-max">{{ stats.condado_max }}</div>
+      <div class="text-sm text-gray-600 mt-1">Condado Más Afectado</div>
+    </div>
+    <div class="bg-green-50 rounded-lg p-4 text-center border-2 border-green-200">
+      <div class="text-lg font-bold text-green-600">{{ stats.fecha }}</div>
+      <div class="text-sm text-gray-600 mt-1">Última Actualización</div>
+    </div>
+  </div>
+
+  <!-- Selector de métrica -->
+  <div class="flex justify-center items-center mb-6 space-x-3">
+    <label class="text-lg font-semibold text-gray-700">Visualizar:</label>
+    <div class="relative">
+      <select id="metrica-selector" class="border border-gray-300 rounded-lg px-4 py-2 pr-10 shadow-sm focus:ring-2 focus:ring-blue-400 focus:outline-none appearance-none bg-white">
+        <option value="Confirmed" {% if metrica_actual == 'Confirmed' %}selected{% endif %}>
+          Casos Confirmados
+        </option>
+        <option value="Deaths" {% if metrica_actual == 'Deaths' %}selected{% endif %}>
+          Muertes
+        </option>
+        <option value="Letalidad" {% if metrica_actual == 'Letalidad' %}selected{% endif %}>
+          Tasa de Letalidad (%)
+        </option>
+      </select>
+      <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+        <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+          <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+        </svg>
+      </div>
+    </div>
+    <div id="loading-indicator" class="loading hidden"></div>
+  </div>
+
+  <!-- Explicación -->
+  <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+      <div class="flex items-start space-x-3">
+        <div class="text-2xl">🔴</div>
+        <div>
+          <div class="font-bold text-gray-800">Tamaño de Burbuja</div>
+          <div class="text-gray-600">Representa la magnitud de la métrica seleccionada</div>
+        </div>
+      </div>
+      <div class="flex items-start space-x-3">
+        <div class="text-2xl">🎨</div>
+        <div>
+          <div class="font-bold text-gray-800">Color</div>
+          <div class="text-gray-600">Intensidad de color = Mayor valor</div>
+        </div>
+      </div>
+      <div class="flex items-start space-x-3">
+        <div class="text-2xl">🖱️</div>
+        <div>
+          <div class="font-bold text-gray-800">Interactivo</div>
+          <div class="text-gray-600">Haz zoom, arrastra y pasa el cursor</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenedor del mapa -->
+  <div id="map-container" class="bg-gray-50 rounded-xl shadow-inner fade-in">
+    {{ graph_html|safe }}
+  </div>
+
+  <!-- Información adicional -->
+  <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="p-4 bg-red-50 rounded-lg border-l-4 border-red-500">
+      <h3 class="font-semibold text-red-900 mb-2 flex items-center">
+        <span class="mr-2">📊</span> Casos Confirmados
+      </h3>
+      <p class="text-sm text-gray-700">
+        Muestra la distribución geográfica de casos totales acumulados por condado.
+      </p>
+    </div>
+    
+    <div class="p-4 bg-orange-50 rounded-lg border-l-4 border-orange-500">
+      <h3 class="font-semibold text-orange-900 mb-2 flex items-center">
+        <span class="mr-2">💀</span> Muertes
+      </h3>
+      <p class="text-sm text-gray-700">
+        Visualiza el impacto mortal del COVID-19 distribuido por condados.
+      </p>
+    </div>
+    
+    <div class="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+      <h3 class="font-semibold text-blue-900 mb-2 flex items-center">
+        <span class="mr-2">📈</span> Tasa de Letalidad
+      </h3>
+      <p class="text-sm text-gray-700">
+        Porcentaje de fallecidos respecto a casos confirmados por condado.
+      </p>
+    </div>
+  </div>
+
+  <!-- Notas técnicas -->
+  <div class="mt-4 p-4 bg-amber-50 border-l-4 border-amber-400 rounded">
+    <p class="text-sm text-gray-700">
+      <strong>ℹ️ Nota:</strong> Los datos mostrados corresponden al último registro disponible por condado. 
+      El tamaño y color de cada burbuja representan la magnitud de la métrica seleccionada.
+    </p>
+  </div>
+</div>
+
+<script>
+  const metricaSelector = document.getElementById('metrica-selector');
+  const mapContainer = document.getElementById('map-container');
+  const loadingIndicator = document.getElementById('loading-indicator');
+
+  function updateStats(stats) {
+    document.getElementById('stat-condados').textContent = stats.total_condados.toLocaleString();
+    document.getElementById('stat-casos').textContent = stats.total_casos.toLocaleString();
+    document.getElementById('stat-muertes').textContent = stats.total_muertes.toLocaleString();
+    document.getElementById('stat-condado-max').textContent = stats.condado_max;
+  }
+
+  metricaSelector.addEventListener('change', async () => {
+    const metrica = metricaSelector.value;
+    
+    loadingIndicator.classList.remove('hidden');
+    metricaSelector.disabled = true;
+
+    try {
+      const response = await fetch(`/mapa-usa?metrica=${encodeURIComponent(metrica)}`, {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+      
+      const data = await response.json();
+
+      if (data.html) {
+        mapContainer.innerHTML = data.html;
+        
+        if (data.stats) {
+          updateStats(data.stats);
+        }
+        
+        mapContainer.classList.remove('fade-in');
+        void mapContainer.offsetWidth;
+        mapContainer.classList.add('fade-in');
+      }
+      
+    } catch (error) {
+      mapContainer.innerHTML = `
+        <div class="text-center p-8">
+          <div class="text-red-500 text-5xl mb-4">⚠️</div>
+          <p class="text-red-500 font-semibold text-lg">Error al cargar el mapa</p>
+          <p class="text-gray-600 text-sm mt-2">${error.message}</p>
+        </div>
+      `;
+      console.error("Error actualizando mapa:", error);
+    } finally {
+      loadingIndicator.classList.add('hidden');
+      metricaSelector.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>

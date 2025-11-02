@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import json
 import numpy as np
+from plotly.subplots import make_subplots
 
 app = Flask(__name__)
 
@@ -43,42 +44,35 @@ def run_query(query, params=None):
 # ------- QUERY 10: DASHBOARD DE KPIs MEJORADO -------
 @app.route('/kpi_dashboard')
 def kpi_dashboard():
-    # 📊 QUERY 1: Estadísticas globales actuales
+
+    #Estadísticas globales actuales
     query_global = """
         SELECT 
-            SUM(Confirmed) as TotalConfirmados,
-            SUM(Deaths) as TotalMuertes,
-            SUM(Recovered) as TotalRecuperados,
-            SUM(Active) as TotalActivos,
+            SUM(Confirmed) as TotalConfirmados, SUM(Deaths) as TotalMuertes, SUM(Recovered) as TotalRecuperados, SUM(Active) as TotalActivos,
             COUNT(DISTINCT Country_Region) as PaisesAfectados
         FROM dbo.country_wise_latest
     """
     df_global = run_query(query_global)
     
-    # 📊 QUERY 2: Tendencias semanales
+    #Tendencias semanales
     query_tendencias = """
         SELECT 
-            SUM(_1_week_change) as CambioSemanal,
-            SUM(Confirmed) as TotalActual,
-            AVG(_1_week_increase) as PromedioAumentoSemanal
+            SUM(_1_week_change) as CambioSemanal, SUM(Confirmed) as TotalActual, AVG(_1_week_increase) as PromedioAumentoSemanal
         FROM dbo.country_wise_latest
         WHERE _1_week_increase IS NOT NULL
     """
     df_tendencias = run_query(query_tendencias)
     
-    # 📊 QUERY 3: Casos graves y testing
+    #Casos graves y testing
     query_testing = """
         SELECT 
-            SUM(Serious_Critical) as CasosGraves,
-            SUM(ActiveCases) as CasosActivosTotal,
-            AVG(Tests_1M_pop) as PromedioTestsPorMillon,
-            SUM(TotalTests) as TestsTotales
+            SUM(Serious_Critical) as CasosGraves, SUM(ActiveCases) as CasosActivosTotal, AVG(Tests_1M_pop) as PromedioTestsPorMillon, SUM(TotalTests) as TestsTotales
         FROM dbo.worldometer_data
         WHERE Tests_1M_pop IS NOT NULL
     """
     df_testing = run_query(query_testing)
     
-    # 🧮 CALCULAR KPIs
+    #Calculo de KPIs
     if not df_global.empty:
         total_confirmados = df_global['TotalConfirmados'].iloc[0]
         total_muertes = df_global['TotalMuertes'].iloc[0]
@@ -86,21 +80,16 @@ def kpi_dashboard():
         total_activos = df_global['TotalActivos'].iloc[0]
         paises_afectados = df_global['PaisesAfectados'].iloc[0]
         
-        # KPI 1: Tasa de Recuperación (%)
         tasa_recuperacion = (total_recuperados / total_confirmados * 100) if total_confirmados > 0 else 0
         
-        # KPI 2: Tasa de Mortalidad (%)
         tasa_mortalidad = (total_muertes / total_confirmados * 100) if total_confirmados > 0 else 0
         
-        # KPI 3: Velocidad de Propagación (% cambio semanal)
         velocidad_propagacion = df_tendencias['PromedioAumentoSemanal'].iloc[0] if not df_tendencias.empty else 0
         
-        # KPI 4: Carga Hospitalaria (% casos graves)
         casos_graves = df_testing['CasosGraves'].iloc[0] if not df_testing.empty else 0
         casos_activos_total = df_testing['CasosActivosTotal'].iloc[0] if not df_testing.empty else 1
         carga_hospitalaria = (casos_graves / casos_activos_total * 100) if casos_activos_total > 0 else 0
         
-        # KPI 5: Tests por millón
         tests_por_millon = df_testing['PromedioTestsPorMillon'].iloc[0] if not df_testing.empty else 0
         
     else:
@@ -114,10 +103,7 @@ def kpi_dashboard():
         total_confirmados = 0
         total_muertes = 0
         total_recuperados = 0
-    
-    # 🎨 CREAR FIGURA CON SUBPLOTS
-    from plotly.subplots import make_subplots
-    
+      
     fig = make_subplots(
         rows=2, cols=3,
         specs=[
@@ -135,10 +121,9 @@ def kpi_dashboard():
         vertical_spacing=0.3,
         horizontal_spacing=0.15
     )
-    
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # 🎯 GAUGE 1: TASA DE RECUPERACIÓN (SIN DELTA CONFUSO)
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    # GAUGE 1: TASA DE RECUPERACIÓN (SIN DELTA CONFUSO)
+
     fig.add_trace(go.Indicator(
         mode="gauge+number",
         value=tasa_recuperacion,
@@ -165,10 +150,9 @@ def kpi_dashboard():
             }
         }
     ), row=1, col=1)
-    
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # ☠️ GAUGE 2: TASA DE MORTALIDAD
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    #GAUGE 2: TASA DE MORTALIDAD
+
     fig.add_trace(go.Indicator(
         mode="gauge+number",
         value=tasa_mortalidad,
@@ -195,10 +179,9 @@ def kpi_dashboard():
             }
         }
     ), row=1, col=2)
-    
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # 📈 GAUGE 3: VELOCIDAD DE PROPAGACIÓN
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    #GAUGE 3: VELOCIDAD DE PROPAGACIÓN
+
     fig.add_trace(go.Indicator(
         mode="gauge+number",
         value=abs(velocidad_propagacion),
@@ -226,9 +209,8 @@ def kpi_dashboard():
         }
     ), row=1, col=3)
     
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # 🏥 GAUGE 4: CARGA HOSPITALARIA
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    #GAUGE 4: CARGA HOSPITALARIA
+
     fig.add_trace(go.Indicator(
         mode="gauge+number",
         value=carga_hospitalaria,
@@ -256,9 +238,8 @@ def kpi_dashboard():
         }
     ), row=2, col=1)
     
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # 🌍 GAUGE 5: PAÍSES AFECTADOS (SIN GAUGE, SOLO NÚMERO)
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # GAUGE 5: PAÍSES AFECTADOS 
+
     fig.add_trace(go.Indicator(
         mode="number",
         value=paises_afectados,
@@ -270,12 +251,11 @@ def kpi_dashboard():
             'font': {'size': 70, 'color': '#1e40af', 'family': 'Arial Black'},
             'suffix': ' países'
         },
-        domain={'x': [0, 1], 'y': [0.2, 0.8]}  # Ajustado para no tapar texto
+        domain={'x': [0, 1], 'y': [0.2, 0.8]} 
     ), row=2, col=2)
     
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # 🧪 GAUGE 6: TESTS POR MILLÓN (ARREGLADO - TEXTO VISIBLE)
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    #GAUGE 6: TESTS POR MILLÓN
+
     fig.add_trace(go.Indicator(
         mode="gauge+number",
         value=tests_por_millon,
@@ -284,7 +264,7 @@ def kpi_dashboard():
             'font': {'size': 14}
         },
         number={
-            'font': {'size': 32, 'color': '#0891b2'},  # Tamaño reducido
+            'font': {'size': 32, 'color': '#0891b2'}, 
             'suffix': "<br>tests/1M",
             'valueformat': ',.0f'
         },
@@ -314,9 +294,8 @@ def kpi_dashboard():
         }
     ), row=2, col=3)
     
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # 🎨 LAYOUT GENERAL CON ANIMACIONES
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    #LAYOUT GENERAL 
     fig.update_layout(
         title=dict(
             text='<b>📊 COVID-19 Dashboard de Indicadores Clave (KPIs)</b>',
@@ -331,7 +310,7 @@ def kpi_dashboard():
         font=dict(family='Inter, Arial', size=13, color='#334155')
     )
     
-    # Convertir a HTML con animaciones activadas
+    # Convertir a HTML 
     graph_html = pio.to_html(fig, full_html=False, config={
         'displayModeBar': True,
         'displaylogo': False,

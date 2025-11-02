@@ -1,64 +1,56 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mapa COVID-19</title>
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      background: linear-gradient(135deg, #eef2ff 0%, #e0f2fe 100%);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-  </style>
-</head>
-<body class="text-gray-900">
+{% extends "index.html" %}
 
-  <!-- Navbar -->
-  <nav class="bg-blue-700 text-white p-4 shadow-lg flex justify-between items-center">
-    <h1 class="text-2xl font-bold">🌍 COVID-19 Dashboard</h1>
+{% block content %}
+<div class="page-header">
     <div>
-      <a href="/evolucion" class="mx-3 hover:underline font-medium">Evolución</a>
-      <a href="/comparacion" class="mx-3 hover:underline font-medium">Comparación</a>
-      <a href="/mortalidad" class="mx-3 hover:underline font-medium">Mortalidad</a>
-      <a href="/recuperados" class="mx-3 hover:underline font-medium">Recuperados</a>
-      <a href="/mapa" class="mx-3 underline font-semibold">Mapa</a>
+        <h1>Mapa de Calor COVID-19</h1>
+        <small>Visualización geográfica de casos por millón y tasa de mortalidad</small>
     </div>
-  </nav>
+</div>
 
-
-  <!-- Contenido principal -->
-  <div class="max-w-6xl mx-auto mt-10 p-8 bg-white shadow-2xl rounded-2xl fade-in">
-    <h2 class="text-3xl font-bold text-center mb-8 text-blue-700">
-      Mapa Mundial de Casos Confirmados COVID-19
-    </h2>
-
+<div class="card">
     <!-- Selector de tipo -->
-    <div class="flex justify-center mb-6">
-      <label class="text-lg font-semibold mr-3 text-gray-700">Visualizar:</label>
-      <select id="tipo" class="border border-gray-300 rounded-lg px-4 py-2 shadow-sm focus:ring-2 focus:ring-blue-400">
-        <option value="CasosPorMillon" {% if tipo == 'CasosPorMillon' %}selected{% endif %}>Casos por millón</option>
-        <option value="TasaMortalidad" {% if tipo == 'TasaMortalidad' %}selected{% endif %}>Tasa de mortalidad (%)</option>
-      </select>
+    <div class="mapa-selector">
+        <label for="tipo">Visualizar:</label>
+        <select id="tipo">
+            <option value="CasosPorMillon" {% if tipo == 'CasosPorMillon' %}selected{% endif %}>📊 Casos por millón</option>
+            <option value="TasaMortalidad" {% if tipo == 'TasaMortalidad' %}selected{% endif %}>💀 Tasa de mortalidad (%)</option>
+        </select>
     </div>
 
-    <div id="mapa-container" class="rounded-xl shadow-inner">
-      {{ graph_html|safe }}
+    <!-- Contenedor del mapa -->
+    <div id="mapa-container">
+        {{ graph_html|safe }}
     </div>
-  </div>
 
-    <script>
-        const tipoSelect = document.getElementById('tipo');
-        tipoSelect.addEventListener('change', () => {
-            const selectedTipo = tipoSelect.value;
-            // Recargar la página con el nuevo parámetro 'tipo'
-            window.location.href = `/mapa?tipo=${selectedTipo}`;
-        });
-    </script>
+    <!-- Información adicional -->
+    <div class="info-box">
+        <h3>ℹ️ Información</h3>
+        <p id="info-text">
+            {% if tipo == 'CasosPorMillon' %}
+                Este mapa muestra el número de casos confirmados por cada millón de habitantes, 
+                permitiendo comparar la incidencia del COVID-19 independientemente del tamaño poblacional de cada país.
+            {% else %}
+                Este mapa muestra la tasa de mortalidad (porcentaje de muertes respecto a casos confirmados), 
+                lo que refleja la letalidad del virus en diferentes países.
+            {% endif %}
+        </p>
+    </div>
+</div>
 
-</body>
-</html>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+    const tipoSelect = document.getElementById('tipo');
+    const infoText = document.getElementById('info-text');
+    
+    tipoSelect.addEventListener('change', () => {
+        const selectedTipo = tipoSelect.value;
+        if (selectedTipo === 'CasosPorMillon') {
+            infoText.textContent = 'Este mapa muestra el número de casos confirmados por cada millón de habitantes, permitiendo comparar la incidencia del COVID-19 independientemente del tamaño poblacional de cada país.';
+        } else {
+            infoText.textContent = 'Este mapa muestra la tasa de mortalidad (porcentaje de muertes respecto a casos confirmados), lo que refleja la letalidad del virus en diferentes países.';
+        }
+        window.location.href = `/mapa?tipo=${selectedTipo}`;
+    });
+</script>
+{% endblock %}

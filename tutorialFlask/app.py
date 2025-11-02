@@ -13,11 +13,11 @@ app = Flask(__name__)
 
 # --- CONFIGURACIÓN DE LA CONEXIÓN ---
 
-server = getenv('DB_SERVER', 'localhost\\SQLEXPRESS')
+#server = getenv('DB_SERVER', 'localhost\\SQLEXPRESS')
 #database = getenv('DB_DATABASE', 'COVID-19')
 #username = getenv('DB_USERNAME', 'project')
 #password = getenv('DB_PASSWORD', 'project123')
-#server = 'localhost,1433'
+server = 'localhost,1433'
 database = 'COVID_19'
 username = 'project'
 password = 'project123'
@@ -56,100 +56,127 @@ def run_query(query, params=None):
 
 #------- QUERY 1: EVOLUCION EN EL TIEMPO DE CASOS  EN UN PAIS
 
-def figure_evolucion(df, pais):
-    fig = px.line(df, x='Date', y=df.columns[1:], labels={
-        'value': 'Número de Casos',
-        'variable': 'Categoría',
-        'Fecha': 'Fecha'},
-                  title=f'Evolución de Casos Confirmados en {pais}',
-                  markers=True,
-                  line_shape='spline')
-    fig.update_layout(
-        template='plotly_white',
-        title_x=0.5,
-        font=dict(family="Inter, sans-serif", size=14, color="#333"),
-        height=500,
-        margin=dict(l=40, r=40, t=60, b=40)
-    )
-    return fig
-
-
 @app.route('/evolucion')
 def evolucion():
-
+    """Ruta principal que maneja tanto la carga inicial como las actualizaciones."""
+    
+    # Obtener el país solicitado (default: Colombia)
+    pais = request.args.get('pais', 'Colombia')
+    
     db = pyodbc.connect(connection_string)
     cursor = db.cursor()
 
+    # Obtener lista de países para el selector
     cursor.execute("SELECT DISTINCT Country_Region FROM dbo.covid_19_clean_complete ORDER BY Country_Region")
     paises = [row[0] for row in cursor.fetchall()]
 
-    pais_default = 'Colombia'
-
-    """Genera la gráfica de evolución de casos confirmados en Colombia."""
+    # Consulta de datos para el país seleccionado
     query = """
         SELECT Date, 
                SUM(Confirmed) AS TotalConfirmed, 
-               SUM(Deaths) AS TotalMuertes, 
-               SUM(Recovered) AS TotalRecuperados
-        FROM dbo.covid_19_clean_complete
-        WHERE Country_Region = ?
-        GROUP BY Date
-        ORDER BY Date;
-    """
-    cursor.execute(query, pais_default)
-    rows = cursor.fetchall()
-
-    columns = [column[0] for column in cursor.description]
-    df = pd.DataFrame.from_records(rows, columns=columns)
-
-    fig = figure_evolucion(df, pais_default)
-
-    graph_html = pio.to_html(fig, full_html=False, div_id='evolucion_graph')
-    db.close()
-    return render_template('dashboard.html', paises=paises, pais_default = pais_default, graph_html=graph_html)
-
-@app.route('/evolucion_data/<pais>')
-def evolucion_data(pais):
-    print(f"🔍 Consultando datos para: {pais}")  # Para verificar en consola
-
-    query = """
-        SELECT Date, 
-               SUM(Confirmed) AS TotalConfirmed,
-               SUM(Deaths) AS TotalDeaths,
+               SUM(Deaths) AS TotalDeaths, 
                SUM(Recovered) AS TotalRecovered
         FROM dbo.covid_19_clean_complete
         WHERE Country_Region = ?
         GROUP BY Date
         ORDER BY Date;
     """
-
+    
     try:
-        db = pyodbc.connect(connection_string)
-        cursor = db.cursor()
         cursor.execute(query, pais)
         rows = cursor.fetchall()
 
         if not rows:
-            print("⚠️ No se encontraron registros.")
-            return jsonify({'html': '<p class="text-center text-red-500 font-semibold">No hay datos para este país.</p>'})
+            print(f"⚠️ No se encontraron registros para: {pais}")
+            db.close()
+            return render_template('evolucion.html', 
+                                 paises=paises, 
+                                 pais_default=pais,
+                                 graph_html='<p class="text-center text-red-500 font-semibold">No hay datos para este país.</p>')
 
         columns = [column[0] for column in cursor.description]
         df = pd.DataFrame.from_records(rows, columns=columns)
-        print(df.head())  # Para ver si sí trajo datos
+        
+        print(f"✅ Datos cargados para {pais}: {len(df)} registros")
 
-        # Gráfico simple por ahora (solo TotalConfirmed)
+        # Generar la figura
         fig = figure_evolucion(df, pais)
-
-        graph_json = pio.to_json(fig)
-        return jsonify({'json': graph_json})
+        
+        # Si es una solicitud AJAX (con header especial), devolver JSON
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            graph_json = pio.to_json(fig)
+            return jsonify({'json': graph_json})
+        
+        # Si es carga inicial, devolver HTML completo
+        graph_html = pio.to_html(fig, full_html=False, div_id='evolucion_graph')
+        
+        return render_template('evolucion.html', 
+                             paises=paises, 
+                             pais_default=pais,
+                             graph_html=graph_html)
 
     except Exception as e:
-        print("❌ Error al ejecutar consulta:", e)
-        return jsonify({'html': f'<p style="color:red;">Error: {str(e)}</p>'})
+        print(f"❌ Error al consultar datos: {e}")
+        error_html = f'<p class="text-center text-red-500 font-semibold">Error al cargar datos: {str(e)}</p>'
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'html': error_html})
 
+        return render_template('evolucion.html', 
+                             paises=paises, 
+                             pais_default=pais,
+                             graph_html=error_html)
+    
     finally:
-        if db:
-            db.close()
+        db.close()
+
+
+def figure_evolucion(df, pais):
+    """Genera la figura de Plotly para la evolución de casos."""
+    fig = px.line(
+        df, 
+        x='Date', 
+        y=df.columns[1:],  # Todas las columnas excepto Date
+        labels={
+            'value': 'Número de Casos',
+            'variable': 'Categoría',
+            'Date': 'Fecha'
+        },
+        title=f'{pais}',
+        markers=True,
+        line_shape='spline'
+    )
+    
+    fig.update_layout(
+        template='plotly_white',
+        title_x=0.5,
+        font=dict(family="Inter, sans-serif", size=14, color="#333"),
+        height=500,
+        margin=dict(l=40, r=180, t=60, b=40),
+        hovermode='x unified',
+        legend=dict(
+            title="Categoría",
+            orientation="v",
+            yanchor="top",
+            y=1.02,
+            xanchor="left",
+            x=1.02
+        )
+    )
+    
+    # Mejorar colores de las líneas
+    colors = {
+        'TotalConfirmed': '#3498DB',
+        'TotalDeaths': '#E74C3C',
+        'TotalRecovered': '#2ECC71'
+    }
+    
+    for trace in fig.data:
+        if trace.name in colors:
+            trace.line.color = colors[trace.name]
+            trace.line.width = 3
+    
+    return fig
 
 #------- FIN QUERY 1
 
@@ -179,14 +206,14 @@ def figure_map(df, tipo='CasosPorMillon'):
         center={"lat": 20, "lon": 0},
         opacity=0.7,
         labels={tipo: label},
-        title=f'Mapa de {label} por País'
+        title=f'Mapa de {label} por país'
     )
 
     fig.update_layout(
         margin=dict(l=0, r=0, t=40, b=0),
         height=600,
         title_x=0.5,
-        title_font=dict(size=22, color="#1e3a8a"),
+        title_font=dict(size=22, color="#5850ec"),
         paper_bgcolor="rgba(0,0,0,0)",
         mapbox_accesstoken=None
     )
@@ -243,11 +270,6 @@ def race_chart():
     # Asegurar que Date es string en formato correcto
     df['Date'] = df['Date'].astype(str)
     
-    # Limpiar datos
-    #df = df.replace([np.inf, -np.inf], np.nan).fillna(0)
-    #df["casos_totales"] = df["casos_totales"].clip(lower=0)
-    #df["muertes_totales"] = df["muertes_totales"].clip(lower=0)
-    
     # Filtrar solo fechas semanales (último día de la semana)
     df['Date_dt'] = pd.to_datetime(df['Date'])
     df['week'] = df['Date_dt'].dt.to_period('W').astype(str)
@@ -271,7 +293,6 @@ def race_chart():
         color="WHO_Region",
         animation_frame="week",  
         orientation='h',
-        title="🏆 Top 15 Países con más Muertes de COVID-19",
         labels={
             "muertes_totales": "Muertes Totales",
             "Country_Region": "País",
@@ -294,9 +315,8 @@ def race_chart():
         template="plotly_white",
         xaxis_title="Muertes Totales",
         yaxis_title="",
-        title_font=dict(size=24, color="#1d4ed8", family="Arial Black"),
         height=700,
-        margin=dict(l=180, r=40, t=100, b=60),
+        margin=dict(l=180, r=40, t=60, b=60),
         yaxis={
             'categoryorder': 'total ascending',
             'tickfont': dict(size=13, family="Arial")
@@ -360,4 +380,4 @@ def page_not_found(e):
     return render_template('404.html'), 404
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5050)

@@ -1,0 +1,69 @@
+{% extends "index.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Evolución de Casos COVID-19</h1>
+        <small>Visualiza el crecimiento de contagios, muertes y recuperaciones por país</small>
+    </div>
+</div>
+
+<div class="card">
+    <!-- Información adicional -->
+    <div class="info-box">
+        <h3>ℹ️ Información</h3>
+        <p>
+            Este gráfico muestra la evolución temporal de los casos confirmados, fallecidos y recuperados 
+            por país. Puedes hacer zoom o mover la vista para explorar los datos con mayor detalle.
+        </p>
+    </div>
+
+    <!-- Selector de país: igual que en tu mapa, recargamos la página -->
+    <div class="evolucion-selector">
+        <label for="pais">Selecciona un país:</label>
+        <select id="pais">
+            {% for pais in paises %}
+                <option value="{{ pais }}" {% if pais == pais_default %}selected{% endif %}>{{ pais }}</option>
+            {% endfor %}
+        </select>
+        <div id="loading-indicator" class="loading hidden"></div>
+    </div>
+
+    <!-- Contenedor del gráfico: aquí se inserta directamente graph_html generado por el backend -->
+    <div id="chart-container">
+        {{ graph_html|safe }}
+    </div>
+</div>
+
+<div class="resumen-grid">
+  <div class="resumen-card resumen-confirmed">
+    <h2>—</h2>
+    <p>Total Confirmados</p>
+  </div>
+  <div class="resumen-card resumen-deaths">
+    <h2>—</h2>
+    <p>Total Fallecidos</p>
+  </div>
+  <div class="resumen-card resumen-recovered">
+    <h2>—</h2>
+    <p>Total Recuperados</p>
+  </div>
+</div>
+
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<script>
+    // Mismo patrón que usaste en el mapa: recargar la página al cambiar la selección.
+    const paisSelect = document.getElementById('pais');
+    const loadingIndicator = document.getElementById('loading-indicator');
+
+    paisSelect.addEventListener('change', () => {
+        const pais = paisSelect.value;
+        // mostrar spinner pequeño mientras se recarga
+        loadingIndicator.classList.remove('hidden');
+        // redirigir a la misma ruta con el parámetro 'pais'
+        window.location.href = `/evolucion?pais=${encodeURIComponent(pais)}`;
+    });
+</script>
+{% endblock %}

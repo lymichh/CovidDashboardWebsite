@@ -1,61 +1,40 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Race Chart COVID-19</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex flex-col">
-  <nav class="bg-blue-700 text-white p-4 shadow-lg flex justify-between items-center">
-    <h1 class="text-2xl font-bold">🌍 COVID-19 Dashboard</h1>
+{% extends "index.html" %}
+
+{% block content %}
+<div class="page-header">
     <div>
-      <a href="/evolucion" class="mx-3 hover:underline font-medium">Evolución</a>
-      <a href="/race-chart" class="mx-3 hover:underline font-medium">Race Chart</a>
+        <h1>Ranking dinámico de países por COVID-19</h1>
+        <small>Visualización temporal del top 15 de países con más muertes confirmadas</small>
     </div>
-  </nav>
-  
-  <main class="flex-grow flex items-center justify-center p-4">
-    <div class="max-w-7xl w-full bg-white shadow-2xl rounded-2xl p-6">
-      <div class="mb-6">
-        <h2 class="text-3xl font-bold text-center text-blue-700 mb-3">
-          🏆 Ranking Dinámico de Países por COVID-19
-        </h2>
-        <p class="text-center text-gray-600 text-sm">
-          Observa cómo cambia el top 15 de países con más casos confirmados a lo largo del tiempo
-        </p>
-      </div>
-            
-      {{ graph_html | safe }}
-      
-      <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="p-4 bg-blue-50 rounded-lg">
-          <h3 class="font-semibold text-blue-900 mb-2 flex items-center">
-            <span class="mr-2">📊</span> Información del Gráfico
-          </h3>
-          <ul class="text-sm text-gray-700 space-y-1">
-            <li>• Colores representan regiones de la OMS</li>
-            <li>• Datos acumulados de casos confirmados</li>
-            <li>• Actualización semanal para fluidez óptima</li>
-          </ul>
+</div>
+
+<div class="card">
+    <!-- Gráfico principal -->
+    <div id="race-chart-container">
+        {{ graph_html | safe }}
+    </div>
+
+    <!-- Sección informativa -->
+    <div class="race-info-grid">
+        <div class="info-box blue">
+            <h3>📊 Información del Gráfico</h3>
+            <ul>
+                <li>• Los colores representan regiones de la OMS</li>
+                <li>• Datos acumulados de casos confirmados</li>
+                <li>• Actualización semanal para fluidez óptima</li>
+            </ul>
         </div>
         
-        <div class="p-4 bg-green-50 rounded-lg">
-          <h3 class="font-semibold text-green-900 mb-2 flex items-center">
-            <span class="mr-2">💡</span> Tips de Uso
-          </h3>
-          <ul class="text-sm text-gray-700 space-y-1">
-            <li>• Haz clic en una región para filtrarla</li>
-            <li>• Pasa el cursor sobre las barras para detalles</li>
-            <li>• Ajusta la velocidad según prefieras</li>
-          </ul>
+        <div class="info-box green">
+            <h3>💡 Tips de Uso</h3>
+            <ul>
+                <li>• Haz clic en una región para filtrarla</li>
+                <li>• Pasa el cursor sobre las barras para ver más detalles</li>
+                <li>• Ajusta la velocidad según prefieras</li>
+            </ul>
         </div>
-      </div>
     </div>
-  </main>
-  
-  <footer class="bg-gray-800 text-white text-center py-4 text-sm">
-    <p>Datos: COVID-19 Dashboard | Visualización en tiempo real</p>
-  </footer>
-</body>
-</html>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+{% endblock %}

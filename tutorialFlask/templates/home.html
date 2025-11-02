@@ -1,0 +1,104 @@
+{% extends "index.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Dashboard de seguimiento de COVID-19</h1>
+        <small>Los efectos de la pandemia y nuestro propósito</small>
+    </div>
+</div>
+
+<div class="home-container">
+  <section class="home-intro">
+    <p>
+      El mundo fue testigo de un cambio histórico con la emergencia del COVID-19, 
+      una enfermedad que rápidamente escaló a una pandemia global, declarada como tal a principios de 2020. 
+      Su rápida propagación y la gravedad de sus efectos 
+      (desde el colapso de sistemas de salud hasta el impacto socioeconómico) 
+      subrayaron la necesidad crítica de información precisa y oportuna para la toma de decisiones.
+    </p>
+
+    <p>
+      El propósito de este dashboard es transformar los datos de COVID-19 en 
+      información visual significativa e interactiva. 
+      No se trata solo de números, sino de una vista clara a su impacto mundial.
+    </p>
+
+    <p>
+      A través de una serie de gráficos claros y dinámicos, los usuarios pueden explorar la evolución de los casos confirmados, 
+      muertes, recuperaciones y otros indicadores clave a lo largo del tiempo 
+      y en diferentes regiones del mundo.
+    </p>
+
+    <p>
+      Para facilitar esta comprensión, se ofrecen herramientas interactivas como menús desplegables 
+      y selección de rangos de fechas, permitiendo aislar y analizar información específica, países o periodos de tiempo. 
+      De esta forma, este dashboard fomenta una exploración activa y una comprensión profunda 
+      y basada en datos sobre el desarrollo de la pandemia.
+    </p>
+  </section>
+  <!-- Carrusel de imágenes -->
+  <div class="carousel-container">
+    <div class="carousel-slide fade">
+      <img src="{{ url_for('static', filename='img/covid1.jpg') }}" alt="Impacto global del COVID-19">
+      <div class="caption">Estructura Viral (SARS-CoV-2)</div>
+    </div>
+
+    <div class="carousel-slide fade">
+      <img src="{{ url_for('static', filename='img/covid2.jpg') }}" alt="Vacunación mundial">
+      <div class="caption">Avances en la vacunación mundial</div>
+    </div>
+
+    <div class="carousel-slide fade">
+      <img src="{{ url_for('static', filename='img/covid3.jpg') }}" alt="Personas caminando con mascarillas">
+      <div class="caption">La nueva normalidad</div>
+    </div>
+
+    <!-- Botones de control -->
+    <a class="prev" onclick="plusSlides(-1)">&#10094;</a>
+    <a class="next" onclick="plusSlides(1)">&#10095;</a>
+  </div>
+
+  <!-- Indicadores -->
+  <div class="dots-container">
+    <span class="dot" onclick="currentSlide(1)"></span>
+    <span class="dot" onclick="currentSlide(2)"></span>
+    <span class="dot" onclick="currentSlide(3)"></span>
+  </div>
+</div>
+
+<!-- Script del carrusel -->
+<script>
+let slideIndex = 1;
+showSlides(slideIndex);
+
+function plusSlides(n) {
+  showSlides(slideIndex += n);
+}
+
+function currentSlide(n) {
+  showSlides(slideIndex = n);
+}
+
+function showSlides(n) {
+  const slides = document.getElementsByClassName("carousel-slide");
+  const dots = document.getElementsByClassName("dot");
+  if (n > slides.length) slideIndex = 1;
+  if (n < 1) slideIndex = slides.length;
+
+  for (let i = 0; i < slides.length; i++) {
+    slides[i].style.display = "none";  
+  }
+
+  for (let i = 0; i < dots.length; i++) {
+    dots[i].classList.remove("active");
+  }
+
+  slides[slideIndex - 1].style.display = "block";  
+  dots[slideIndex - 1].classList.add("active");
+}
+
+// Cambio automático
+setInterval(() => { plusSlides(1); }, 8000);
+</script>
+{% endblock %}

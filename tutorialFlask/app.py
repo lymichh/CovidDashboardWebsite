@@ -52,10 +52,13 @@ def run_query(query, params=None):
         print(f"Error al ejecutar consulta: {e}")
         return pd.DataFrame()
 
+#------- Pagina principal
+@app.route("/home")
+def homePage():
+    return render_template("home.html")
 
 
-#------- QUERY 1: EVOLUCION EN EL TIEMPO DE CASOS  EN UN PAIS
-
+#------- QUERY 1: EVOLUCION EN EL TIEMPO DE CASOS EN UN PAIS
 @app.route('/evolucion')
 def evolucion():
     """Ruta principal que maneja tanto la carga inicial como las actualizaciones."""
@@ -368,11 +371,10 @@ def race_chart():
 #------- FIN QUERY 3
 
 
-
 # Ruta principal
 @app.route('/')
 def home():
-    return render_template('index.html')
+    return render_template('home.html')
     #return "<h1 style='text-align:center;'>Bienvenido al Dashboard COVID-19</h1><p style='text-align:center;'><a href='/evolucion'>Ir al Dashboard</a></p>"
 
 @app.errorhandler(404)

@@ -15,9 +15,9 @@ app = Flask(__name__)
 
 # --- CONFIGURACIÓN DE LA CONEXIÓN ---
 
-server = getenv('DB_SERVER', 'localhost\\SQLEXPRESS')
+#server = getenv('DB_SERVER', 'localhost\\SQLEXPRESS')
 
-#server = 'localhost,1433'
+server = 'localhost,1433'
 database = 'COVID_19'
 username = 'project'
 password = 'project123'
@@ -99,8 +99,6 @@ def evolucion():
 
         columns = [column[0] for column in cursor.description]
         df = pd.DataFrame.from_records(rows, columns=columns)
-        
-        print(f"✅ Datos cargados para {pais}: {len(df)} registros")
 
         # Generar la figura
         fig = figure_evolucion(df, pais)
@@ -541,12 +539,12 @@ def kpi_dashboard():
             [{'type': 'indicator'}, {'type': 'indicator'}, {'type': 'indicator'}]
         ],
         subplot_titles=(
-            '🎯 Tasa de Recuperación (ANIMADO)',
-            '☠️ Tasa de Mortalidad (ANIMADO)',
-            '📈 Velocidad Semanal Propagación',
-            '🏥 Carga Hospitalaria',
-            '🌍 Países Afectados',
-            '🧪 Tests por Millón'
+            'Tasa de Recuperación',
+            'Tasa de Mortalidad',
+            'Velocidad Semanal Propagación',
+            'Carga Hospitalaria',
+            'Países Afectados',
+            'Tests por Millón'
         ),
         vertical_spacing=0.25,
         horizontal_spacing=0.12
@@ -658,7 +656,7 @@ def kpi_dashboard():
         value=paises_afectados,
         title={'text': "<b>Expansión global</b>", 'font': {'size': 12}},
         number={
-            'font': {'size': 60, 'color': '#1e40af', 'family': 'Arial Black'},
+            'font': {'size': 50, 'color': '#1e3a8a', 'family': 'Arial Black'},
             'suffix': ' países'
         },
         domain={'x': [0, 1], 'y': [0.2, 0.8]}
@@ -669,9 +667,8 @@ def kpi_dashboard():
         mode="gauge+number",
         value=tests_por_millon,
         title={'text': "<b>Promedio mundial</b>", 'font': {'size': 12}},
-        # Quitamos suffix con <br> y cualquier HTML problemático
         number={
-            'font': {'size': 36, 'color': '#0891b2', 'family': 'Inter'},
+            'font': {'size': 36, 'color': '#0891b2'},
             'valueformat': ',.0f'
         },
         gauge={
@@ -704,7 +701,7 @@ def kpi_dashboard():
         x=0.9,   # centrado aproximadamente sobre la tercera columna
         y=0.14,   # dentro de la segunda fila (ajusta +/- si quieres moverlo)
         xref='paper', yref='paper',
-        text="<b>tests / 1M</b>",
+        text="<b>Tests / 1M</b>",
         showarrow=False,
         font={'size': 12, 'color': '#0891b2', 'family': 'Inter'},
         align='center',
@@ -731,16 +728,12 @@ def kpi_dashboard():
         }]
     )
 
-
-    
     graph_html = pio.to_html(
         fig,
         full_html=False,
         include_plotlyjs='cdn',
         config={'responsive': True, 'displayModeBar': False}
     )
-
-
     
     return render_template('kpi.html',
                          graph_html=graph_html)
@@ -903,7 +896,6 @@ def muerte_continente():
 @app.route('/')
 def home():
     return render_template('home.html')
-    #return "<h1 style='text-align:center;'>Bienvenido al Dashboard COVID-19</h1><p style='text-align:center;'><a href='/evolucion'>Ir al Dashboard</a></p>"
 
 @app.errorhandler(404)
 def page_not_found(e):

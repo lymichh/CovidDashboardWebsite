@@ -73,6 +73,7 @@ body {
 
 .sidebar-user img {
     width: 40%;
+    
 }
 
 .sidebar-user h3 {
@@ -353,6 +354,7 @@ main {
 }
 
 .mapa-selector {
+    margin-top: 1.5rem;
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
@@ -382,7 +384,7 @@ main {
 }
 
 .info-box {
-    margin-top: 2rem;
+    margin-top: 1rem;
     padding: 1.5rem;
     background: #f9fafb;
     border-left: 4px solid #5850ec;
@@ -408,7 +410,6 @@ main {
 }
 
 .race-info-grid {
-    margin-top: 2rem;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 1.5rem;

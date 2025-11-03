@@ -18,7 +18,7 @@
         </p>
     </div>
 
-    <!-- Selector de país: igual que en tu mapa, recargamos la página -->
+    <!-- Selector de país-->
     <div class="evolucion-selector">
         <label for="pais">Selecciona un país:</label>
         <select id="pais">
@@ -29,7 +29,7 @@
         <div id="loading-indicator" class="loading hidden"></div>
     </div>
 
-    <!-- Contenedor del gráfico: aquí se inserta directamente graph_html generado por el backend -->
+    <!-- Contenedor del gráfico-->
     <div id="chart-container">
         {{ graph_html|safe }}
     </div>
@@ -54,7 +54,7 @@
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
 <script>
-    // Mismo patrón que usaste en el mapa: recargar la página al cambiar la selección.
+
     const paisSelect = document.getElementById('pais');
     const loadingIndicator = document.getElementById('loading-indicator');
 

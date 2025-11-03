@@ -90,7 +90,7 @@ def evolucion():
         rows = cursor.fetchall()
 
         if not rows:
-            print(f"⚠️ No se encontraron registros para: {pais}")
+            print(f"No se encontraron registros para: {pais}")
             db.close()
             return render_template('evolucion.html', 
                                  paises=paises, 
@@ -103,12 +103,7 @@ def evolucion():
         # Generar la figura
         fig = figure_evolucion(df, pais)
         
-        # Si es una solicitud AJAX (con header especial), devolver JSON
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            graph_json = pio.to_json(fig)
-            return jsonify({'json': graph_json})
         
-        # Si es carga inicial, devolver HTML completo
         graph_html = pio.to_html(fig, full_html=False, div_id='evolucion_graph')
         
         return render_template('evolucion.html', 
@@ -183,6 +178,31 @@ def figure_evolucion(df, pais):
 
 
 #------- QUERY 2: MAPA DE CALOR
+
+@app.route('/mapa')
+def mapa():
+    tipo = request.args.get('tipo', 'CasosPorMillon')
+    query = """
+        SELECT 
+                Country_Region,
+                Population,
+                (TotalCases * 1.0 / Population) * 1000000 AS CasosPorMillon,
+                (TotalDeaths * 100.0 / TotalCases) AS TasaMortalidad
+            FROM dbo.worldometer_data
+            WHERE Population IS NOT NULL 
+            AND Population > 0
+            AND TotalCases > 0
+            ORDER BY CasosPorMillon DESC;
+    """
+    
+    df = run_query(query)
+    fig = figure_map(df, tipo)
+    graph_html = pio.to_html(fig, full_html=False, div_id='mapa_graph')
+
+    return render_template('mapa.html', graph_html=graph_html, tipo=tipo)
+
+
+
 def figure_map(df, tipo='CasosPorMillon'):
 
     country_mapping = {
@@ -273,27 +293,6 @@ def figure_map(df, tipo='CasosPorMillon'):
     return fig
     
 
-@app.route('/mapa')
-def mapa():
-    tipo = request.args.get('tipo', 'CasosPorMillon')
-    query = """
-        SELECT 
-                Country_Region,
-                Population,
-                (TotalCases * 1.0 / Population) * 1000000 AS CasosPorMillon,
-                (TotalDeaths * 100.0 / TotalCases) AS TasaMortalidad
-            FROM dbo.worldometer_data
-            WHERE Population IS NOT NULL 
-            AND Population > 0
-            AND TotalCases > 0
-            ORDER BY CasosPorMillon DESC;
-    """
-    
-    df = run_query(query)
-    fig = figure_map(df, tipo)
-    graph_html = pio.to_html(fig, full_html=False, div_id='mapa_graph')
-
-    return render_template('mapa.html', graph_html=graph_html, tipo=tipo)
 
 #------- FIN QUERY 2
 
@@ -331,7 +330,7 @@ def race_chart():
     df_weekly = df.sort_values('Date').groupby(['week', 'Country_Region', 'WHO_Region']).last().reset_index()
     
     
-    # Para cada período, obtener el top 15
+    # Para cada período, top 15
     top_n = 15
     df_top = df_weekly.groupby('week', group_keys=False).apply(
         lambda x: x.nlargest(top_n, 'muertes_totales')
@@ -698,8 +697,8 @@ def kpi_dashboard():
 
     # Annotation fija para la etiqueta "tests / 1M"
     fig.add_annotation(
-        x=0.9,   # centrado aproximadamente sobre la tercera columna
-        y=0.14,   # dentro de la segunda fila (ajusta +/- si quieres moverlo)
+        x=0.9,   
+        y=0.14,   
         xref='paper', yref='paper',
         text="<b>Tests / 1M</b>",
         showarrow=False,

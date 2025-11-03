@@ -4,7 +4,10 @@
 <div class="page-header">
     <div>
         <h1>Distribución Global de Muertes por COVID-19</h1>
-        <small>Visualización geográfica de muertes por COVID-19 por continente.</small>
+        <small>
+            Análisis visual que muestra cómo se distribuyen las muertes por COVID-19 entre los diferentes continentes, 
+            destacando cuáles regiones fueron las más afectadas durante la pandemia.
+        </small>
     </div>
 </div>
 
@@ -13,14 +16,30 @@
     <div class="info-box">
         <h3>ℹ️ Información</h3>
         <p>
-            Este gráfico muestra la Información sobre la distribución de muertes por COVID-19 a nivel global, segmentada por continente.
-            Al pasar el cursor sobre cada segmento, podrás ver el número exacto de muertes, su porcentaje respecto al total e información adicional.
+            Este gráfico de pastel representa la proporción de muertes por COVID-19 registradas en cada continente.
+            Los segmentos del gráfico reflejan tanto el número total de muertes como su porcentaje relativo sobre el total mundial.
+        </p>
+        <p>
+            Cada sección muestra también el <b>país más afectado</b> dentro del continente correspondiente, junto con su número total de muertes.
+            Esto permite identificar rápidamente los focos más críticos de la pandemia en cada región.
         </p>
     </div>
 
- <!-- Contenedor del gráfico: aquí se inserta directamente graph_html generado por el backend -->
+    <!-- Contenedor del gráfico -->
     <div id="chart-container">
         {{ graph_html|safe }}
     </div>
+
+    <div class="info-box green">
+        <h3>💡Tip de uso:</h3>
+        <p>
+            Pasa el cursor sobre cada segmento del gráfico para ver información detallada,
+            incluyendo el porcentaje global, el número total de muertes y el país más afectado.
+        </p>
+    </div>
+        
+</div>
+
+
 </div>
 {% endblock %}

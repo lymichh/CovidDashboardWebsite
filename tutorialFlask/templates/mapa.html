@@ -9,6 +9,21 @@
 </div>
 
 <div class="card">
+    <!-- Información adicional -->
+    <div class="info-box">
+        <h3>ℹ️ Información</h3>
+        <p id="info-text">
+            {% if tipo == 'CasosPorMillon' %}
+                Este mapa muestra el número de casos confirmados por cada millón de habitantes, 
+                permitiendo comparar la incidencia del COVID-19 independientemente del tamaño poblacional de cada país.
+            {% else %}
+                Este mapa muestra la tasa de mortalidad (porcentaje de muertes respecto a casos confirmados), 
+                lo que refleja la letalidad del virus en diferentes países.
+            {% endif %}
+        </p>
+    </div>
+    
+    
     <!-- Selector de tipo -->
     <div class="mapa-selector">
         <label for="tipo">Visualizar:</label>
@@ -23,19 +38,14 @@
         {{ graph_html|safe }}
     </div>
 
-    <!-- Información adicional -->
-    <div class="info-box">
-        <h3>ℹ️ Información</h3>
-        <p id="info-text">
-            {% if tipo == 'CasosPorMillon' %}
-                Este mapa muestra el número de casos confirmados por cada millón de habitantes, 
-                permitiendo comparar la incidencia del COVID-19 independientemente del tamaño poblacional de cada país.
-            {% else %}
-                Este mapa muestra la tasa de mortalidad (porcentaje de muertes respecto a casos confirmados), 
-                lo que refleja la letalidad del virus en diferentes países.
-            {% endif %}
-        </p>
-    </div>
+    <div class="info-box green">
+        <h3>💡 Tip de Uso</h3>
+        <p>
+            En este mapa de calor, los colores indican la intensidad del impacto del COVID-19 en cada país: 
+            más oscuros representan valores más altos. Puedes pasar el cursor por encima para ver el valor exacto. 
+            Puedes usar el menú desplegable para alternar entre ambas métricas y comparar visualmente las regiones más afectadas.
+    </p>
+    
 </div>
 
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>

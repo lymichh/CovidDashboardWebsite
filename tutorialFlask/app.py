@@ -188,6 +188,41 @@ def figure_evolucion(df, pais):
 
 #------- QUERY 2: MAPA DE CALOR
 def figure_map(df, tipo='CasosPorMillon'):
+
+    country_mapping = {
+        'USA': 'United States of America',
+        'UK': 'United Kingdom',
+        'UAE': 'United Arab Emirates',
+        'S. Korea': 'South Korea',
+        'North Macedonia': 'Macedonia',
+        'Congo': 'Republic of the Congo',
+        'DRC': 'Democratic Republic of the Congo',
+        'Czechia': 'Czech Republic',
+        'CAR': 'Central African Republic',
+        'Bosnia and Herzegovina': 'Bosnia and Herz.',
+        'Dominican Republic': 'Dominican Rep.',
+        'Equatorial Guinea': 'Eq. Guinea',
+        'Timor-Leste': 'East Timor',
+        "Côte d'Ivoire": 'Ivory Coast',
+        'Eswatini': 'Swaziland',
+        'Faeroe Islands': 'Faroe Islands',
+        'Channel Islands': 'United Kingdom',
+        'Saint Kitts and Nevis': 'St. Kitts and Nevis',
+        'Saint Lucia': 'St. Lucia',
+        'Saint Vincent and the Grenadines': 'St. Vincent and the Gren.',
+        'Turks and Caicos': 'Turks and Caicos Is.',
+        'British Virgin Islands': 'British Virgin Is.',
+        'U.S. Virgin Islands': 'United States Virgin Islands',
+        'Sint Maarten': 'Sint Maarten',
+        'St. Barth': 'St-Barthélemy',
+        'Caribbean Netherlands': 'Netherlands',
+        'China': 'China'
+    }
+
+    df['Country_Mapped'] = df['Country_Region'].map(country_mapping).fillna(df['Country_Region'])
+
+
+
     # GeoJSON mundial (de Natural Earth, alojado en Plotly)
     df[tipo] = pd.to_numeric(df[tipo], errors='coerce')
 
@@ -195,25 +230,32 @@ def figure_map(df, tipo='CasosPorMillon'):
     with urllib.request.urlopen(url) as response:
         geojson = json.load(response)
 
+    
     label = "Casos por millón de habitantes" if tipo == "CasosPorMillon" else "Tasa de mortalidad (%)"
     color_scale = 'Reds' if tipo == "CasosPorMillon" else 'Blues'
 
     fig = px.choropleth_mapbox(
         df,
         geojson=geojson,
-        locations='Country_Region',
+        locations='Country_Mapped',
         featureidkey='properties.name',  # Coincide con los nombres del campo Country_Region
         color=tipo,
         color_continuous_scale= color_scale,
-        range_color=(0, df[tipo].max()),
+        range_color=(0, df[tipo].quantile(0.98)),
         mapbox_style="carto-positron",
         zoom=1,
         center={"lat": 20, "lon": 0},
-        opacity=0.7,
+        opacity=0.8,
         labels={tipo: label},
-        title=f'Mapa de {label} por país'
+        title=f'Mapa de {label} por país',
+        hover_name='Country_Region',  
+        hover_data={
+            'Country_Mapped': False,  
+            tipo: ':.2f'
+        }
     )
 
+    
     fig.update_layout(
         margin=dict(l=0, r=0, t=40, b=0),
         height=600,
@@ -377,47 +419,65 @@ def race_chart():
 
 @app.route('/kpi')
 def kpi_dashboard():
-
-    #Estadísticas globales actuales
+    # QUERY 1: Datos históricos (últimas 20 fechas)
+    query_historico = """
+        SELECT TOP 20
+            Date,
+            SUM(Confirmed) as TotalConfirmados,
+            SUM(Deaths) as TotalMuertes,
+            SUM(Recovered) as TotalRecuperados,
+            SUM(Active) as TotalActivos
+        FROM dbo.day_wise
+        GROUP BY Date
+        ORDER BY Date DESC
+    """
+    df_historico = run_query(query_historico)
+    
+    # QUERY 2: Estadísticas globales ACTUALES
     query_global = """
         SELECT 
-            SUM(Confirmed) as TotalConfirmados, SUM(Deaths) as TotalMuertes, SUM(Recovered) as TotalRecuperados, SUM(Active) as TotalActivos,
+            SUM(Confirmed) as TotalConfirmados,
+            SUM(Deaths) as TotalMuertes,
+            SUM(Recovered) as TotalRecuperados,
+            SUM(Active) as TotalActivos,
             COUNT(DISTINCT Country_Region) as PaisesAfectados
         FROM dbo.country_wise_latest
     """
     df_global = run_query(query_global)
     
-    #Tendencias semanales
+    # QUERY 3: Tendencias semanales ACTUALES (para velocidad de propagación)
     query_tendencias = """
         SELECT 
-            SUM(_1_week_change) as CambioSemanal, SUM(Confirmed) as TotalActual, AVG(_1_week_increase) as PromedioAumentoSemanal
+            AVG(_1_week_increase) as PromedioAumentoSemanal
         FROM dbo.country_wise_latest
         WHERE _1_week_increase IS NOT NULL
     """
     df_tendencias = run_query(query_tendencias)
     
-    #Casos graves y testing
+    # QUERY 4: Casos graves y testing ACTUALES
     query_testing = """
         SELECT 
-            SUM(Serious_Critical) as CasosGraves, SUM(ActiveCases) as CasosActivosTotal, AVG(Tests_1M_pop) as PromedioTestsPorMillon, SUM(TotalTests) as TestsTotales
+            SUM(Serious_Critical) as CasosGraves,
+            SUM(ActiveCases) as CasosActivosTotal,
+            AVG(Tests_1M_pop) as PromedioTestsPorMillon
         FROM dbo.worldometer_data
         WHERE Tests_1M_pop IS NOT NULL
     """
     df_testing = run_query(query_testing)
     
-    #Calculo de KPIs
+    # CALCULAR KPIs ACTUALES (ESTÁTICOS - no cambian con el slider)
     if not df_global.empty:
         total_confirmados = df_global['TotalConfirmados'].iloc[0]
         total_muertes = df_global['TotalMuertes'].iloc[0]
         total_recuperados = df_global['TotalRecuperados'].iloc[0]
-        total_activos = df_global['TotalActivos'].iloc[0]
         paises_afectados = df_global['PaisesAfectados'].iloc[0]
         
-        tasa_recuperacion = (total_recuperados / total_confirmados * 100) if total_confirmados > 0 else 0
+        # KPIs que SÍ cambian con el tiempo (históricos)
+        tasa_recuperacion_inicial = (total_recuperados / total_confirmados * 100) if total_confirmados > 0 else 0
+        tasa_mortalidad_inicial = (total_muertes / total_confirmados * 100) if total_confirmados > 0 else 0
         
-        tasa_mortalidad = (total_muertes / total_confirmados * 100) if total_confirmados > 0 else 0
-        
-        velocidad_propagacion = df_tendencias['PromedioAumentoSemanal'].iloc[0] if not df_tendencias.empty else 0
+        # KPIs que NO cambian (estáticos, basados en datos actuales)
+        velocidad_propagacion = abs(df_tendencias['PromedioAumentoSemanal'].iloc[0]) if not df_tendencias.empty else 0
         
         casos_graves = df_testing['CasosGraves'].iloc[0] if not df_testing.empty else 0
         casos_activos_total = df_testing['CasosActivosTotal'].iloc[0] if not df_testing.empty else 1
@@ -426,17 +486,46 @@ def kpi_dashboard():
         tests_por_millon = df_testing['PromedioTestsPorMillon'].iloc[0] if not df_testing.empty else 0
         
     else:
-        # Valores por defecto si no hay datos
-        tasa_recuperacion = 0
-        tasa_mortalidad = 0
-        velocidad_propagacion = 0
-        carga_hospitalaria = 0
-        paises_afectados = 0
-        tests_por_millon = 0
-        total_confirmados = 0
-        total_muertes = 0
-        total_recuperados = 0
-      
+        tasa_recuperacion_inicial = tasa_mortalidad_inicial = velocidad_propagacion = 0
+        carga_hospitalaria = paises_afectados = tests_por_millon = 0
+        total_confirmados = total_muertes = total_recuperados = casos_graves = 0
+    
+    # CREAR FRAMES (solo para los 2 primeros gauges que cambian)
+    frames = []
+    slider_steps = []
+    
+    if not df_historico.empty:
+        df_historico_sorted = df_historico.sort_values('Date')
+        
+        for idx, row in df_historico_sorted.iterrows():
+            fecha = row['Date'].strftime('%d/%m/%Y')
+            confirmados = row['TotalConfirmados']
+            muertes = row['TotalMuertes']
+            recuperados = row['TotalRecuperados']
+            
+            tasa_rec = (recuperados / confirmados * 100) if confirmados > 0 else 0
+            tasa_mort = (muertes / confirmados * 100) if confirmados > 0 else 0
+            
+            # Frame solo actualiza los 2 primeros gauges (índices 0 y 1)
+            frame = go.Frame(
+                data=[
+                    go.Indicator(value=tasa_rec),  # Gauge 1: Recuperación
+                    go.Indicator(value=tasa_mort), # Gauge 2: Mortalidad
+                ],
+                name=fecha,
+                traces=[0, 1]  # Solo actualiza los traces 0 y 1
+            )
+            frames.append(frame)
+            
+            slider_steps.append({
+                'args': [[fecha], {'frame': {'duration': 300, 'redraw': True}, 'mode': 'immediate'}],
+                'label': fecha,
+                'method': 'animate'
+            })
+    
+    # CREAR FIGURA CON 6 GAUGES (2x3 grid)
+    from plotly.subplots import make_subplots
+    
     fig = make_subplots(
         rows=2, cols=3,
         specs=[
@@ -444,32 +533,28 @@ def kpi_dashboard():
             [{'type': 'indicator'}, {'type': 'indicator'}, {'type': 'indicator'}]
         ],
         subplot_titles=(
-            '🎯 Tasa de Recuperación',
-            '☠️ Tasa de Mortalidad',
-            '📈 Velocidad de Propagación',
+            '🎯 Tasa de Recuperación (ANIMADO)',
+            '☠️ Tasa de Mortalidad (ANIMADO)',
+            '📈 Velocidad Semanal Propagación',
             '🏥 Carga Hospitalaria',
             '🌍 Países Afectados',
             '🧪 Tests por Millón'
         ),
-        vertical_spacing=0.3,
-        horizontal_spacing=0.15
+        vertical_spacing=0.25,
+        horizontal_spacing=0.12
     )
-
-    # GAUGE 1: TASA DE RECUPERACIÓN (SIN DELTA CONFUSO)
-
+    
+    # GAUGE 1: RECUPERACIÓN (ANIMADO)
     fig.add_trace(go.Indicator(
         mode="gauge+number",
-        value=tasa_recuperacion,
-        title={
-            'text': f"<b>Recuperación Global</b><br><span style='font-size:12px; color:gray'>{total_recuperados:,.0f} de {total_confirmados:,.0f} casos</span>",
-            'font': {'size': 14}
-        },
-        number={'suffix': "%", 'font': {'size': 42, 'color': '#059669'}},
+        value=tasa_recuperacion_inicial,
+        title={'text': f"<b>{total_recuperados:,.0f} recuperados</b>", 'font': {'size': 12}},
+        number={'suffix': "%", 'font': {'size': 40, 'color': '#059669'}},
         gauge={
-            'axis': {'range': [0, 100], 'tickwidth': 2, 'tickcolor': "lightgray", 'ticksuffix': '%'},
-            'bar': {'color': "#059669", 'thickness': 0.8},
+            'axis': {'range': [0, 100], 'ticksuffix': '%'},
+            'bar': {'color': "#059669", 'thickness': 0.75},
             'bgcolor': "white",
-            'borderwidth': 3,
+            'borderwidth': 2,
             'bordercolor': "#e5e7eb",
             'steps': [
                 {'range': [0, 50], 'color': '#fee2e2'},
@@ -477,28 +562,24 @@ def kpi_dashboard():
                 {'range': [75, 100], 'color': '#d1fae5'}
             ],
             'threshold': {
-                'line': {'color': "#10b981", 'width': 5},
-                'thickness': 0.8,
-                'value': tasa_recuperacion
+                'line': {'color': "#10b981", 'width': 4},
+                'thickness': 0.75,
+                'value': tasa_recuperacion_inicial
             }
         }
     ), row=1, col=1)
-
-    #GAUGE 2: TASA DE MORTALIDAD
-
+    
+    # GAUGE 2: MORTALIDAD (ANIMADO)
     fig.add_trace(go.Indicator(
         mode="gauge+number",
-        value=tasa_mortalidad,
-        title={
-            'text': f"<b>Mortalidad Global</b><br><span style='font-size:12px; color:gray'>{total_muertes:,.0f} fallecidos</span>",
-            'font': {'size': 14}
-        },
-        number={'suffix': "%", 'font': {'size': 42, 'color': '#dc2626'}},
+        value=tasa_mortalidad_inicial,
+        title={'text': f"<b>{total_muertes:,.0f} fallecidos</b>", 'font': {'size': 12}},
+        number={'suffix': "%", 'font': {'size': 40, 'color': '#dc2626'}},
         gauge={
-            'axis': {'range': [0, 10], 'tickwidth': 2, 'tickcolor': "lightgray", 'ticksuffix': '%'},
-            'bar': {'color': "#dc2626", 'thickness': 0.8},
+            'axis': {'range': [0, 10], 'ticksuffix': '%'},
+            'bar': {'color': "#dc2626", 'thickness': 0.75},
             'bgcolor': "white",
-            'borderwidth': 3,
+            'borderwidth': 2,
             'bordercolor': "#e5e7eb",
             'steps': [
                 {'range': [0, 2], 'color': '#d1fae5'},
@@ -506,28 +587,24 @@ def kpi_dashboard():
                 {'range': [5, 10], 'color': '#fee2e2'}
             ],
             'threshold': {
-                'line': {'color': "#ef4444", 'width': 5},
-                'thickness': 0.8,
-                'value': tasa_mortalidad
+                'line': {'color': "#ef4444", 'width': 4},
+                'thickness': 0.75,
+                'value': tasa_mortalidad_inicial
             }
         }
     ), row=1, col=2)
-
-    #GAUGE 3: VELOCIDAD DE PROPAGACIÓN
-
+    
+    # GAUGE 3: VELOCIDAD (ESTÁTICO)
     fig.add_trace(go.Indicator(
         mode="gauge+number",
-        value=abs(velocidad_propagacion),
-        title={
-            'text': "<b>Aumento Semanal</b><br><span style='font-size:12px; color:gray'>Promedio global</span>",
-            'font': {'size': 14}
-        },
-        number={'suffix': "%", 'font': {'size': 42, 'color': '#f59e0b'}},
+        value=velocidad_propagacion,
+        title={'text': "<b>Promedio actual</b>", 'font': {'size': 12}},
+        number={'suffix': "%", 'font': {'size': 40, 'color': '#f59e0b'}},
         gauge={
-            'axis': {'range': [0, 50], 'tickwidth': 2, 'tickcolor': "lightgray", 'ticksuffix': '%'},
-            'bar': {'color': "#f59e0b", 'thickness': 0.8},
+            'axis': {'range': [0, 50], 'ticksuffix': '%'},
+            'bar': {'color': "#f59e0b", 'thickness': 0.75},
             'bgcolor': "white",
-            'borderwidth': 3,
+            'borderwidth': 2,
             'bordercolor': "#e5e7eb",
             'steps': [
                 {'range': [0, 5], 'color': '#d1fae5'},
@@ -535,28 +612,24 @@ def kpi_dashboard():
                 {'range': [15, 50], 'color': '#fee2e2'}
             ],
             'threshold': {
-                'line': {'color': "#f97316", 'width': 5},
-                'thickness': 0.8,
-                'value': abs(velocidad_propagacion)
+                'line': {'color': "#f97316", 'width': 4},
+                'thickness': 0.75,
+                'value': velocidad_propagacion
             }
         }
     ), row=1, col=3)
     
-    #GAUGE 4: CARGA HOSPITALARIA
-
+    # GAUGE 4: CARGA HOSPITALARIA (ESTÁTICO)
     fig.add_trace(go.Indicator(
         mode="gauge+number",
         value=carga_hospitalaria,
-        title={
-            'text': f"<b>Casos Graves / Activos</b><br><span style='font-size:12px; color:gray'>{casos_graves:,.0f} graves de {casos_activos_total:,.0f}</span>",
-            'font': {'size': 14}
-        },
-        number={'suffix': "%", 'font': {'size': 42, 'color': '#8b5cf6'}},
+        title={'text': f"<b>{casos_graves:,.0f} casos graves</b>", 'font': {'size': 12}},
+        number={'suffix': "%", 'font': {'size': 40, 'color': '#8b5cf6'}},
         gauge={
-            'axis': {'range': [0, 100], 'tickwidth': 2, 'tickcolor': "lightgray", 'ticksuffix': '%'},
-            'bar': {'color': "#8b5cf6", 'thickness': 0.8},
+            'axis': {'range': [0, 100], 'ticksuffix': '%'},
+            'bar': {'color': "#8b5cf6", 'thickness': 0.75},
             'bgcolor': "white",
-            'borderwidth': 3,
+            'borderwidth': 2,
             'bordercolor': "#e5e7eb",
             'steps': [
                 {'range': [0, 30], 'color': '#d1fae5'},
@@ -564,121 +637,106 @@ def kpi_dashboard():
                 {'range': [60, 100], 'color': '#fee2e2'}
             ],
             'threshold': {
-                'line': {'color': "#a855f7", 'width': 5},
-                'thickness': 0.8,
+                'line': {'color': "#a855f7", 'width': 4},
+                'thickness': 0.75,
                 'value': carga_hospitalaria
             }
         }
     ), row=2, col=1)
     
-    # GAUGE 5: PAÍSES AFECTADOS 
-
+    # GAUGE 5: PAÍSES (ESTÁTICO)
     fig.add_trace(go.Indicator(
         mode="number",
         value=paises_afectados,
-        title={
-            'text': "<b>Expansión Global</b><br><span style='font-size:12px; color:gray'>Países con casos confirmados</span>",
-            'font': {'size': 14}
-        },
+        title={'text': "<b>Expansión global</b>", 'font': {'size': 12}},
         number={
-            'font': {'size': 70, 'color': '#1e40af', 'family': 'Arial Black'},
+            'font': {'size': 60, 'color': '#1e40af', 'family': 'Arial Black'},
             'suffix': ' países'
         },
-        domain={'x': [0, 1], 'y': [0.2, 0.8]} 
+        domain={'x': [0, 1], 'y': [0.2, 0.8]}
     ), row=2, col=2)
     
-    #GAUGE 6: TESTS POR MILLÓN
-
+    # GAUGE 6: TESTS (ESTÁTICO)
     fig.add_trace(go.Indicator(
         mode="gauge+number",
         value=tests_por_millon,
-        title={
-            'text': "<b>Capacidad de Testeo</b><br><span style='font-size:12px; color:gray'>Promedio mundial</span>",
-            'font': {'size': 14}
-        },
+        title={'text': "<b>Promedio mundial</b>", 'font': {'size': 12}},
+        # Quitamos suffix con <br> y cualquier HTML problemático
         number={
-            'font': {'size': 32, 'color': '#0891b2'}, 
-            'suffix': "<br>tests/1M",
+            'font': {'size': 36, 'color': '#0891b2', 'family': 'Inter'},
             'valueformat': ',.0f'
         },
         gauge={
             'axis': {
                 'range': [0, 300000],
-                'tickwidth': 2,
-                'tickcolor': "lightgray",
                 'tickformat': ',.0f',
-                'ticksuffix': 'k',
-                'tickvals': [0, 50000, 100000, 150000, 200000, 250000, 300000]
+                'tickvals': [0, 100000, 200000, 300000]
             },
-            'bar': {'color': "#0891b2", 'thickness': 0.8},
+            'bar': {'color': "#0891b2", 'thickness': 0.75},
             'bgcolor': "white",
-            'borderwidth': 3,
+            'borderwidth': 2,
             'bordercolor': "#e5e7eb",
             'steps': [
-                {'range': [0, 50000], 'color': '#fee2e2'},
-                {'range': [50000, 150000], 'color': '#fef3c7'},
-                {'range': [150000, 300000], 'color': '#d1fae5'}
+                {'range': [0, 100000], 'color': '#fee2e2'},
+                {'range': [100000, 200000], 'color': '#fef3c7'},
+                {'range': [200000, 300000], 'color': '#d1fae5'}
             ],
             'threshold': {
-                'line': {'color': "#06b6d4", 'width': 5},
-                'thickness': 0.8,
+                'line': {'color': "#06b6d4", 'width': 4},
+                'thickness': 0.75,
                 'value': tests_por_millon
             }
-        }
+        },
+        # Domain fijado para la celda (coincide con la tercera columna, fila 2)
+        domain={'x': [0.66, 1.0], 'y': [0.00, 0.45]}
     ), row=2, col=3)
-    
 
-    #LAYOUT GENERAL 
-    fig.update_layout(
-        title=dict(
-            x=0.5,
-            xanchor='center',
-            font=dict(size=32, color='#1e3a8a', family='Inter, Arial')
-        ),
-        paper_bgcolor='#f8fafc',
-        plot_bgcolor='#f8fafc',
-        height=900,
-        margin=dict(t=140, b=80, l=80, r=80),
-        font=dict(family='Inter, Arial', size=13, color='#334155')
+    # Annotation fija para la etiqueta "tests / 1M"
+    fig.add_annotation(
+        x=0.9,   # centrado aproximadamente sobre la tercera columna
+        y=0.14,   # dentro de la segunda fila (ajusta +/- si quieres moverlo)
+        xref='paper', yref='paper',
+        text="<b>tests / 1M</b>",
+        showarrow=False,
+        font={'size': 12, 'color': '#0891b2', 'family': 'Inter'},
+        align='center',
+        bgcolor='rgba(255,255,255,0.0)'
     )
     
-    # Convertir a HTML 
-    graph_html = pio.to_html(fig, full_html=False, config={
-        'displayModeBar': True,
-        'displaylogo': False,
-        'toImageButtonOptions': {
-            'format': 'png',
-            'filename': 'covid_kpi_dashboard',
-            'height': 1000,
-            'width': 1600,
-            'scale': 2
-        },
-        'modeBarButtonsToRemove': ['lasso2d', 'select2d']
-    })
+    fig.frames = frames
+    fig.update_layout(
+        autosize=True,
+        paper_bgcolor='#f8fafc',
+        height=750,
+        margin=dict(t=100, b=100, l=60, r=60),
+        font=dict(family='Inter, Arial', size=12),
+        
+        
+        # Slider
+        sliders=[{
+            'y': 0, 'x': 0.15, 'len': 0.7,
+            'currentvalue': {
+                'prefix': '📅 Fecha: ',
+                'font': {'size': 14, 'color': '#1e40af'}
+            },
+            'steps': slider_steps,
+        }]
+    )
+
+
     
-    # 🎭 AGREGAR ANIMACIÓN CSS AL HTML
-    graph_html = f"""
-    <style>
-        .plotly-graph-div {{
-            animation: fadeIn 0.8s ease-in;
-        }}
-        @keyframes fadeIn {{
-            from {{ opacity: 0; transform: translateY(20px); }}
-            to {{ opacity: 1; transform: translateY(0); }}
-        }}
-        .gtitle {{ font-weight: 700 !important; }}
-    </style>
-    {graph_html}
-    """
+    graph_html = pio.to_html(
+        fig,
+        full_html=False,
+        include_plotlyjs='cdn',
+        config={'responsive': True, 'displayModeBar': False}
+    )
+
+
     
     return render_template('kpi.html',
-                         graph_html=graph_html,
-                         titulo="Dashboard de Indicadores Clave",
-                         tipo_grafico="kpi",
-                         total_confirmados=f"{total_confirmados:,.0f}",
-                         total_muertes=f"{total_muertes:,.0f}",
-                         total_recuperados=f"{total_recuperados:,.0f}",
-                         paises_afectados=paises_afectados)
+                         graph_html=graph_html)
+
 
 #------- FIN QUERY 4
 
@@ -746,8 +804,8 @@ def muerte_continente():
         )
         hover_texts.append(hover_text)
 
-    # Colores
-    colores = ['#065f46', '#047857', '#059669', '#10b981', '#34d399', '#6ee7b7']
+    # Paleta en tonos azules (de oscuro a claro)
+    colores = ['#0D3B66', '#1E6091', '#2A6F97', '#468FAF', '#61A5C2', '#89C2D9']
 
     # Crear figura
     fig = go.Figure(data=[
@@ -792,7 +850,7 @@ def muerte_continente():
             bgcolor='rgba(255,255,255,0.8)',
             bordercolor='#065f46',
             borderwidth=1,
-            itemclick=False,      
+            itemclick=False,
             itemdoubleclick=False
         ),
         annotations=[
@@ -803,7 +861,8 @@ def muerte_continente():
                 x=0.5, y=0.5,
                 showarrow=False,
                 font=dict(color='#065f46', family='Inter'),
-                align='center'
+                align='center',
+                name='centerLabel'
             )
         ],
         paper_bgcolor='rgba(240,253,244,0.3)',
@@ -828,9 +887,7 @@ def muerte_continente():
     })
 
     return render_template('pastel.html',
-                        graph_html=graph_html,
-                        titulo="Distribución de Muertes por Continente",
-                        tipo_grafico="pastel")
+                        graph_html=graph_html)
 
 #------ FIN QUERY 5
 

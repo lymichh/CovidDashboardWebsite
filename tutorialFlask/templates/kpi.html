@@ -4,22 +4,32 @@
 <div class="page-header">
     <div>
         <h1>COVID-19 Dashboard de Indicadores Clave (KPIs)</h1>
-        <small>Visualización geográfica de casos por millón y tasa de mortalidad</small>
+        <small>Métricas globales y evolución temporal de tasas críticas</small>
     </div>
 </div>
 <div class="card">
     <!-- Información adicional -->
     <div class="info-box">
         <h3>ℹ️ Información</h3>
-        <p>
-            Este gráfico muestra la distribución de casos por millón y tasa de mortalidad por país.
-            Al pasar el cursor sobre cada país, podrás ver detalles específicos como el número de casos por millón y la tasa de mortalidad.
-        </p>
+        <ul>
+            Este panel presenta 6 Indicadores Clave (KPIs) para monitorear la pandemia.
+            Los indicadores <strong>'Tasa de Recuperación'</strong> y <strong>'Tasa de Mortalidad'</strong> son dinámicos:
+            se actualizan según la fecha seleccionada. Los otros cuatro indicadores son <strong>estáticos</strong> y reflejan la situación global más reciente.
+        </ul>
     </div>
+    
  <!-- Contenedor del gráfico: aquí se inserta directamente graph_html generado por el backend -->
     <div id="chart-container">
         {{ graph_html|safe }}
     </div>
+
+    <div class="info-box green">
+            <h3>💡 Tip de Uso</h3>
+            <p>
+                Utiliza el <strong>slider de fechas</strong>  para
+                retroceder en el tiempo y observar cómo han evolucionado las tasas históricas.
+            </p>
+    </div>
 </div>
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
 {% endblock %}

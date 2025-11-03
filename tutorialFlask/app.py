@@ -179,7 +179,6 @@ def figure_evolucion(df, pais):
     return fig
 
 #------- FIN QUERY 1
-
 @app.route('/mapa2')
 def mapa2():
     tipo = request.args.get('tipo', 'Confirmed')
@@ -200,6 +199,7 @@ def mapa2():
         WHERE Lat IS NOT NULL 
           AND Long IS NOT NULL
           AND Admin2 IS NOT NULL
+          AND Country_Region = 'US'
           AND Confirmed > 0
     """
     
@@ -207,38 +207,43 @@ def mapa2():
     
     print(f"📊 Registros iniciales: {len(df)}")
     
-    # Convertir Date a datetime si es string
-    df['Date'] = pd.to_datetime(df['Date'])
+    # Convertir Date a datetime
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
     
-    # CRÍTICO: Tomar solo el último registro por condado
-    df_latest = df.sort_values('Date').groupby(['County', 'State']).tail(1).reset_index(drop=True)
+    # Tomar solo el último registro por condado
+    df_latest = df.sort_values('Date').groupby(['UID'], as_index=False).last()
     
-    print(f"📍 Condados únicos después de filtrar: {len(df_latest)}")
+    print(f"📍 Condados únicos: {len(df_latest)}")
     
     # Limpiar coordenadas
     df_latest['Lat'] = pd.to_numeric(df_latest['Lat'], errors='coerce')
     df_latest['Long'] = pd.to_numeric(df_latest['Long'], errors='coerce')
+    df_latest['Confirmed'] = pd.to_numeric(df_latest['Confirmed'], errors='coerce').fillna(0)
+    df_latest['Deaths'] = pd.to_numeric(df_latest['Deaths'], errors='coerce').fillna(0)
     
-    # Detectar si las coordenadas están en formato incorrecto (muy grandes)
+    # Detectar formato incorrecto de coordenadas
     if df_latest['Lat'].abs().max() > 90:
-        print("⚠️ Coordenadas en formato incorrecto, dividiendo por 1e6")
+        print("⚠️ Corrigiendo formato de coordenadas")
         df_latest['Lat'] = df_latest['Lat'] / 1e6
         df_latest['Long'] = df_latest['Long'] / 1e6
     
-    # Filtrar coordenadas válidas de USA continental
+    # Filtrar coordenadas válidas de USA (incluyendo Alaska y Hawaii)
     df_latest = df_latest[
-        (df_latest['Lat'].between(24, 50)) &  
-        (df_latest['Long'].between(-125, -65))
+        (df_latest['Lat'].between(18, 72)) &  # Incluye Hawaii (19°N) y Alaska (71°N)
+        (df_latest['Long'].between(-180, -60)) &  # Incluye Alaska occidental
+        (df_latest['Confirmed'] > 0)
     ]
     
-    print(f"✅ Condados con coordenadas válidas: {len(df_latest)}")
+    print(f"✅ Condados válidos: {len(df_latest)}")
     print(f"📐 Rango Lat: {df_latest['Lat'].min():.2f} a {df_latest['Lat'].max():.2f}")
     print(f"📐 Rango Long: {df_latest['Long'].min():.2f} a {df_latest['Long'].max():.2f}")
-    print(df_latest[['County', 'State', 'Lat', 'Long', 'Confirmed', 'Deaths']].head(10))
     
     # Calcular tasa de letalidad
-    df_latest['Tasa_Letalidad'] = (df_latest['Deaths'] / df_latest['Confirmed'] * 100).round(2)
-    df_latest = df_latest.replace([np.inf, -np.inf], np.nan).fillna(0)
+    df_latest['Tasa_Letalidad'] = np.where(
+        df_latest['Confirmed'] > 0,
+        (df_latest['Deaths'] / df_latest['Confirmed'] * 100).round(2),
+        0
+    )
     
     # Generar figura
     fig = figure_map2(df_latest, tipo)
@@ -250,21 +255,22 @@ def mapa2():
             'total_condados': 0,
             'total_casos': 0,
             'total_muertes': 0,
+            'letalidad_promedio': 0,
             'condado_max': 'N/A',
             'casos_max': 0,
             'fecha': 'N/A'
         }
     else:
-        max_confirmed = df_latest['Confirmed'].max()
-        max_row = df_latest.loc[df_latest['Confirmed'].idxmax()] if not pd.isna(max_confirmed) else None
-
+        max_row = df_latest.loc[df_latest['Confirmed'].idxmax()]
+        
         stats = {
             'total_condados': len(df_latest),
-            'total_casos': int(df_latest['Confirmed'].sum(skipna=True)),
-            'total_muertes': int(df_latest['Deaths'].sum(skipna=True)),
-            'condado_max': f"{max_row['County']}, {max_row['State']}" if max_row is not None else 'N/A',
-            'casos_max': int(max_confirmed) if not pd.isna(max_confirmed) else 0,
-            'fecha': str(df_latest['Date'].max().date()) if not df_latest['Date'].isna().all() else 'N/A'
+            'total_casos': int(df_latest['Confirmed'].sum()),
+            'total_muertes': int(df_latest['Deaths'].sum()),
+            'letalidad_promedio': round((df_latest['Deaths'].sum() / df_latest['Confirmed'].sum() * 100), 2) if df_latest['Confirmed'].sum() > 0 else 0,
+            'condado_max': f"{max_row['County']}, {max_row['State']}",
+            'casos_max': int(max_row['Confirmed']),
+            'fecha': str(df_latest['Date'].max().date())
         }
     
     print(f"📈 Stats: {stats}")
@@ -276,23 +282,26 @@ def mapa2():
 
 
 def figure_map2(df, tipo='Confirmed'):
-    """Genera el mapa de USA por condados."""
+    """Genera el mapa de USA por condados con burbujas."""
     
     config = {
         'Confirmed': {
             'label': 'Casos Confirmados',
             'color_scale': 'Reds',
-            'column': 'Confirmed'
+            'column': 'Confirmed',
+            'emoji': '😷'
         },
         'Deaths': {
             'label': 'Muertes',
             'color_scale': 'Oranges',
-            'column': 'Deaths'
+            'column': 'Deaths',
+            'emoji': '💀'
         },
         'Letalidad': {
             'label': 'Tasa de Letalidad (%)',
             'color_scale': 'Blues',
-            'column': 'Tasa_Letalidad'
+            'column': 'Tasa_Letalidad',
+            'emoji': '📊'
         }
     }
     
@@ -302,7 +311,10 @@ def figure_map2(df, tipo='Confirmed'):
     print(f"🎨 Creando mapa con columna: {column}")
     print(f"📊 Rango de valores: {df[column].min():.2f} a {df[column].max():.2f}")
     
-    # Crear mapa de burbujas con Mapbox
+    # Usar percentil 90 para mejor visualización de colores
+    max_color = df[column].quantile(0.90)
+    
+    # Crear mapa de burbujas
     fig = px.scatter_mapbox(
         df,
         lat='Lat',
@@ -315,24 +327,23 @@ def figure_map2(df, tipo='Confirmed'):
             'State': True,
             'Confirmed': ':,',
             'Deaths': ':,',
-            'Tasa_Letalidad': ':.2f',
-            'Lat': ':.4f',
-            'Long': ':.4f'
+            'Tasa_Letalidad': ':.2f%',
+            'Lat': False,
+            'Long': False
         },
         color_continuous_scale=selected_config['color_scale'],
-        size_max=40,
-        zoom=3.5,
-        center={"lat": 37.0902, "lon": -95.7129},
-        title=f'📍 Mapa de COVID-19 en USA por Condado: {selected_config["label"]}',
+        range_color=(0, max_color),
+        size_max=35,
+        zoom=3.2,
+        center={"lat": 37.5, "lon": -96},
+        title=f'{selected_config["emoji"]} COVID-19 en USA por Condado: {selected_config["label"]}',
         labels={
             column: selected_config['label'],
             'County': 'Condado',
             'State': 'Estado',
             'Confirmed': 'Casos Confirmados',
             'Deaths': 'Muertes',
-            'Tasa_Letalidad': 'Letalidad (%)',
-            'Lat': 'Latitud',
-            'Long': 'Longitud'
+            'Tasa_Letalidad': 'Letalidad'
         }
     )
     
@@ -341,31 +352,31 @@ def figure_map2(df, tipo='Confirmed'):
         height=700,
         margin=dict(l=0, r=0, t=60, b=0),
         title_x=0.5,
-        title_font=dict(size=22, color="#1d4ed8", family="Arial Black"),
+        title_font=dict(size=20, color="#1e40af", family="Arial, sans-serif", weight='bold'),
         paper_bgcolor="rgba(255,255,255,0.95)",
         coloraxis_colorbar=dict(
             title=selected_config['label'],
             thicknessmode="pixels",
-            thickness=15,
+            thickness=18,
             lenmode="pixels",
-            len=300,
+            len=350,
             yanchor="middle",
             y=0.5,
             xanchor="left",
-            x=1.02
+            x=1.01,
+            tickformat=',.0f' if tipo != 'Letalidad' else '.1f',
+            ticksuffix='%' if tipo == 'Letalidad' else ''
         )
     )
     
-    # CORREGIDO: scattermapbox NO acepta 'line' en marker
-    # Solo puedes modificar opacity
     fig.update_traces(
         marker=dict(
-            opacity=0.7
+            opacity=0.65,
+            sizemode='diameter'
         )
     )
     
     return fig
-
 
 
 

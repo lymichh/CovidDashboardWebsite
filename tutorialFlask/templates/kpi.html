@@ -1,0 +1,25 @@
+{% extends "index.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>COVID-19 Dashboard de Indicadores Clave (KPIs)</h1>
+        <small>Visualización geográfica de casos por millón y tasa de mortalidad</small>
+    </div>
+</div>
+<div class="card">
+    <!-- Información adicional -->
+    <div class="info-box">
+        <h3>ℹ️ Información</h3>
+        <p>
+            Este gráfico muestra la distribución de casos por millón y tasa de mortalidad por país.
+            Al pasar el cursor sobre cada país, podrás ver detalles específicos como el número de casos por millón y la tasa de mortalidad.
+        </p>
+    </div>
+ <!-- Contenedor del gráfico: aquí se inserta directamente graph_html generado por el backend -->
+    <div id="chart-container">
+        {{ graph_html|safe }}
+    </div>
+</div>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+{% endblock %}

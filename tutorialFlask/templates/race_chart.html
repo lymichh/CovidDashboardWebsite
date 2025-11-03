@@ -9,12 +9,7 @@
 </div>
 
 <div class="card">
-    <!-- Gráfico principal -->
-    <div id="race-chart-container">
-        {{ graph_html | safe }}
-    </div>
-
-    <!-- Sección informativa -->
+     <!-- Sección informativa -->
     <div class="race-info-grid">
         <div class="info-box blue">
             <h3>📊 Información del Gráfico</h3>
@@ -34,6 +29,12 @@
             </ul>
         </div>
     </div>
+    <!-- Gráfico principal -->
+    <div id="race-chart-container">
+        {{ graph_html | safe }}
+    </div>
+
+   
 </div>
 
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>

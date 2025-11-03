@@ -255,6 +255,16 @@ def figure_map(df, tipo='CasosPorMillon'):
         }
     )
 
+    fig.update_traces(
+    hoverlabel=dict(
+        bgcolor="white",      # Fondo blanco
+        font_color="black",   # Texto negro
+        font_size=13,
+        font_family="Inter, Arial",
+        bordercolor="rgba(0,0,0,0.2)"  # Borde gris claro
+    )
+)
+
     
     fig.update_layout(
         margin=dict(l=0, r=0, t=40, b=0),
